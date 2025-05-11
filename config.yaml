@@ -1,0 +1,4 @@
+n_samples: 500
+centers: 2
+cluster_std: 3.5
+random_state: 42
