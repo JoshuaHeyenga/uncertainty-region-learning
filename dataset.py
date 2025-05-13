@@ -24,6 +24,20 @@ def generate_dataset():
 
 
 def split_dataset(X, Y, test_size=0.2):
+    """
+    Splits the dataset into training and testing sets.
+
+    Args:
+        X (ndarray): Feature matrix.
+        Y (ndarray): Label vector.
+        test_size (float): Proportion of the dataset to include in the test split.
+
+    Returns:
+        X_train (ndarray): Training feature matrix.
+        X_test (ndarray): Testing feature matrix.
+        Y_train (ndarray): Training label vector.
+        Y_test (ndarray): Testing label vector.
+    """
     return train_test_split(
         X, Y, test_size=test_size, random_state=config["random_state"]
     )
