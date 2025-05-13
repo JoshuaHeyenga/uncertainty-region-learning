@@ -12,8 +12,19 @@ from visualization import plot_results_with_decision_boundary
 
 def main():
     """
-    Main function to execute the workflow.
+    Executes the full classification workflow including:
+
+    1. Generating a synthetic dataset using Gaussian blobs.
+    2. Training a baseline classifier on the original data.
+    3. Evaluating and visualizing the decision boundary of the original model.
+    4. Identifying uncertain data points using prediction confidence and assigning them to a 'gap' class (label 2).
+    5. Augmenting the gap class using SMOTE to synthetically generate more representative samples.
+    6. Retraining the classifier on the augmented dataset.
+    7. Evaluating and visualizing the decision boundary after augmentation.
+
+    Visual comparison of the decision boundary before and after gap-class augmentation is shown side-by-side.
     """
+
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
     classifier = clean_train_classifier(X_train, Y_train)

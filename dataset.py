@@ -10,10 +10,14 @@ def generate_dataset():
     """
     Generates a synthetic dataset using Gaussian blobs.
 
+    The number of samples, centers (clusters), standard deviation, and random state
+    are defined in the external configuration file `config.yaml`.
+
     Returns:
-        X (ndarray): Feature matrix.
-        Y (ndarray): Label vector.
+        X (ndarray): Generated feature matrix of shape (n_samples, n_features).
+        Y (ndarray): Corresponding label vector of shape (n_samples,).
     """
+
     X, Y = make_blobs(
         n_samples=config["n_samples"],
         centers=config["centers"],
@@ -25,19 +29,23 @@ def generate_dataset():
 
 def split_dataset(X, Y, test_size=0.2):
     """
-    Splits the dataset into training and testing sets.
+    Splits a dataset into training and test subsets.
+
+    Uses a fixed random seed from the configuration for reproducibility.
 
     Args:
-        X (ndarray): Feature matrix.
-        Y (ndarray): Label vector.
-        test_size (float): Proportion of the dataset to include in the test split.
+        X (ndarray): Full feature matrix of shape (n_samples, n_features).
+        Y (ndarray): Full label vector of shape (n_samples,).
+        test_size (float): Fraction of the dataset to use for the test set (default: 0.2).
 
     Returns:
-        X_train (ndarray): Training feature matrix.
-        X_test (ndarray): Testing feature matrix.
-        Y_train (ndarray): Training label vector.
-        Y_test (ndarray): Testing label vector.
+        tuple:
+            - X_train (ndarray): Feature matrix for the training set.
+            - X_test (ndarray): Feature matrix for the test set.
+            - Y_train (ndarray): Label vector for the training set.
+            - Y_test (ndarray): Label vector for the test set.
     """
+
     return train_test_split(
         X, Y, test_size=test_size, random_state=config["random_state"]
     )

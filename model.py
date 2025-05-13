@@ -10,14 +10,14 @@ with open("config.yaml", "r") as f:
 
 def clean_train_classifier(X_train, Y_train):
     """
-    Trains a classifier on the training data.
+    Trains a multi-layer perceptron (MLP) classifier on the given training data.
 
     Args:
-        X_train (ndarray): Training feature matrix.
-        Y_train (ndarray): Training label vector.
+        X_train (ndarray): The feature matrix for training, shape (n_samples, n_features).
+        Y_train (ndarray): The corresponding label vector, shape (n_samples,).
 
     Returns:
-        classifier (MLPClassifier): Trained classifier.
+        MLPClassifier: The trained classifier.
     """
 
     classifier = MLPClassifier(
@@ -33,7 +33,14 @@ def clean_train_classifier(X_train, Y_train):
 
 def evaluate_model(classifier, X_test, Y_test):
     """
-    bla
+    Evaluates the performance of the trained classifier on test data and prints a classification report.
+
+    The report includes precision, recall, F1-score, and support for classes 0 and 1.
+
+    Args:
+        classifier (MLPClassifier): The trained classifier.
+        X_test (ndarray): Feature matrix for evaluation, shape (n_samples, n_features).
+        Y_test (ndarray): True labels for the test set, shape (n_samples,).
     """
 
     Y_pred = classifier.predict(X_test)
@@ -44,6 +51,23 @@ def evaluate_model(classifier, X_test, Y_test):
 
 
 def assign_gap_class(classifier, X, Y):
+    """
+    Assigns class label 2 (gap class) to data points with low classification confidence.
+
+    This is based on the maximum predicted class probability being below a threshold,
+    defined in the config file under 'uncertainty_threshold'.
+
+    Args:
+        classifier (MLPClassifier): Trained classifier used to compute prediction probabilities.
+        X (ndarray): Feature matrix for all data points, shape (n_samples, n_features).
+        Y (ndarray): Original label vector, shape (n_samples,).
+
+    Returns:
+        tuple:
+            - ndarray: Updated label vector with uncertain samples relabeled to class 2.
+            - ndarray: Boolean mask indicating which points were labeled as uncertain.
+    """
+
     proba = classifier.predict_proba(X)
     confidence = np.max(proba, axis=1)
 
@@ -55,6 +79,23 @@ def assign_gap_class(classifier, X, Y):
 
 
 def augment_smote_gap_class(X, Y, target_class=2):
+    """
+    Augments the dataset by synthetically oversampling the gap class (label 2) using basic SMOTE.
+
+    The gap class is duplicated to reach double its original count. If the current number
+    of gap-class samples already meets or exceeds the target, no augmentation is performed.
+
+    Args:
+        X (ndarray): The feature matrix including original samples, shape (n_samples, n_features).
+        Y (ndarray): The label vector with gap class assignments, shape (n_samples,).
+        target_class (int, optional): The class to oversample. Default is 2.
+
+    Returns:
+        tuple:
+            - ndarray: Augmented feature matrix with new synthetic gap samples.
+            - ndarray: Corresponding label vector including labels for new samples.
+    """
+
     n_gap = np.sum(Y == target_class)
     desired_total = 2 * n_gap
 
