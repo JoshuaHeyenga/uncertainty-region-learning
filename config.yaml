@@ -2,3 +2,5 @@ n_samples: 500
 centers: 2
 cluster_std: 3.5
 random_state: 42
+
+uncertainty_threshold: 0.2 #0.2 worked best
