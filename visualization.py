@@ -49,6 +49,7 @@ def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
     ax.contourf(xx, yy, Z, cmap=ListedColormap(bg_colors), alpha=0.5)
 
     # Plot actual class 0 and 1 points
+    class_labels = ["Class 0", "Class 1", "Gap Class"]
     for class_value in np.unique(Y):
         ax.scatter(
             X[Y == class_value, 0],
@@ -56,7 +57,7 @@ def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
             c=class_colors[class_value],
             edgecolor="k",
             s=20,
-            label=f"Class {class_value}",
+            label=class_labels[class_value],
         )
 
     ax.set_title(title)
