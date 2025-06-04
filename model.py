@@ -1,6 +1,6 @@
 import numpy as np
 import yaml
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, SVMSMOTE
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 from sklearn.neural_network import MLPClassifier
 from sklearn.utils import resample
@@ -103,24 +103,22 @@ def augment_oversampling_gap_class(X, Y, target_class=2):
             - ndarray: Augmented feature matrix with new synthetic gap samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
+    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    if not needs_aug:
+        print("No oversampling needed.")
+        return X, Y
+
+    n_existing = np.sum(Y == target_class)
+    n_to_generate = target_count - n_existing
 
     X_target = X[Y == target_class]
     Y_target = Y[Y == target_class]
 
-    # Compute number of samples to generate
-    n_existing = len(X_target)
-    n_desired = 2 * n_existing  # Check if the factor could be a variable
-
-    if n_existing >= n_desired:
-        print("No oversampling needed.")
-        return X, Y
-
-    # Resample with replacement
     X_oversampled, Y_oversampled = resample(
         X_target,
         Y_target,
         replace=True,
-        n_samples=n_desired - n_existing,
+        n_samples=n_to_generate,
         random_state=42,
     )
 
@@ -149,14 +147,68 @@ def augment_smote_gap_class(X, Y, target_class=2):
             - ndarray: Corresponding label vector including labels for new samples.
     """
 
-    n_gap = np.sum(Y == target_class)
-    desired_total = 5 * n_gap
-
-    if n_gap >= desired_total:
-        print("No augmentation needed.")
+    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    if not needs_aug:
+        print("No SMOTE needed.")
         return X, Y
 
-    smoter = SMOTE(sampling_strategy={target_class: desired_total})
+    smoter = SMOTE(sampling_strategy={target_class: target_count}, random_state=42)
     X_aug, Y_aug = smoter.fit_resample(X, Y)
 
     return X_aug, Y_aug
+
+
+def augment_svm_smote_gap_class(X, Y, target_class=2):
+    """
+    Augments the dataset by synthetically oversampling the gap class (label 2)
+    using SVM-SMOTE from imbalanced-learn.
+
+    SVMSMOTE performs SMOTE on the support vectors near the decision boundary
+    of an SVM trained on the minority class.
+
+    Args:
+        X (ndarray): The feature matrix including original samples, shape (n_samples, n_features).
+        Y (ndarray): The label vector with gap class assignments, shape (n_samples,).
+        target_class (int, optional): The class to oversample. Default is 2.
+
+    Returns:
+        tuple:
+            - ndarray: Augmented feature matrix with new synthetic samples.
+            - ndarray: Corresponding label vector including labels for new samples.
+    """
+    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    if not needs_aug:
+        print("No SVM-SMOTE needed.")
+        return X, Y
+
+    try:
+        smoter = SVMSMOTE(
+            sampling_strategy={target_class: target_count},
+            random_state=42,
+        )
+        X_aug, Y_aug = smoter.fit_resample(X, Y)
+    except ValueError as e:
+        print(f"SVMSMOTE failed: {e}")
+        return X, Y
+
+    return X_aug, Y_aug
+
+
+def get_gap_class_target_count(Y, target_class=2):
+    """
+    Computes the target count for the gap class (label 2) and returns
+    whether augmentation is needed based on the current distribution.
+
+    Args:
+        Y (ndarray): Label vector.
+        target_class (int): The label for the gap class (default: 2).
+
+    Returns:
+        tuple:
+            - bool: Whether augmentation is needed.
+            - int: Target number of samples for the gap class.
+    """
+    counts = {label: np.sum(Y == label) for label in [0, 1, target_class]}
+    avg_count = int(np.mean([counts[0], counts[1]]))
+    needs_augmentation = counts[target_class] < avg_count
+    return needs_augmentation, avg_count

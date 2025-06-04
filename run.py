@@ -8,6 +8,7 @@ from model import (
     assign_gap_class,
     augment_oversampling_gap_class,
     augment_smote_gap_class,
+    augment_svm_smote_gap_class,
     clean_train_classifier,
     evaluate_and_log_model,
 )
@@ -34,7 +35,7 @@ def main():
 
     seed = 42
     threshold = config["uncertainty_threshold"]
-    method = "oversampling"
+    method = "svm_smote"  # Options: "smote", "oversampling", "svm_smote"
 
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
@@ -56,18 +57,24 @@ def main():
     # Assign gap class and augment
     Y_with_gap, gap_mask = assign_gap_class(classifier, X, Y)
 
-    gap_count_before = np.sum(Y_with_gap == 2)
-    print(f"[Before augmentation] Gap class sample count: {gap_count_before}")
+    counts_before = {label: np.sum(Y_with_gap == label) for label in [0, 1, 2]}
+    print(
+        f"[Before augmentation] Class counts: 0 = {counts_before[0]}, 1 = {counts_before[1]}, 2 (gap) = {counts_before[2]}"
+    )
 
     if method == "smote":
         X_aug, Y_aug = augment_smote_gap_class(X, Y_with_gap, target_class=2)
     elif method == "oversampling":
         X_aug, Y_aug = augment_oversampling_gap_class(X, Y_with_gap, target_class=2)
+    elif method == "svm_smote":
+        X_aug, Y_aug = augment_svm_smote_gap_class(X, Y_with_gap, target_class=2)
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    gap_count_after = np.sum(Y_aug == 2)
-    print(f"[After augmentation] Gap class sample count: {gap_count_after}")
+    counts_after = {label: np.sum(Y_aug == label) for label in [0, 1, 2]}
+    print(
+        f"[After augmentation]  Class counts: 0 = {counts_after[0]}, 1 = {counts_after[1]}, 2 (gap) = {counts_after[2]}"
+    )
 
     classifier_aug = clean_train_classifier(X_aug, Y_aug)
 
