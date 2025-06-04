@@ -35,7 +35,7 @@ def main():
 
     seed = 42
     threshold = config["uncertainty_threshold"]
-    method = "svm_smote"  # Options: "smote", "oversampling", "svm_smote"
+    method = "oversampling"  # Options: "smote", "oversampling", "svm_smote"
 
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
