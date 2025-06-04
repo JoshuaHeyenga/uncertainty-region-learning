@@ -4,8 +4,8 @@ Lorem ipsum
 
 Synthetic Dataset Results 
 
-![Random Oversampling Plot](plot_results/Oversampling_SynthesizedData.png)
-
-![SMOTE Plot](plot_results/SMOTE_SynthesizedData.png)
-
-![SVM SMOTE Plot](plot_results/SVM_SMOTE_SynthesizedData.png)
+<p align="center">
+  <img src="results/oversampling.png" alt="Oversampling" width="30%" />
+  <img src="results/smote.png" alt="SMOTE" width="30%" />
+  <img src="results/svm_smote.png" alt="SVM-SMOTE" width="30%" />
+</p>
