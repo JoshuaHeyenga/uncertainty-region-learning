@@ -3,7 +3,9 @@ import numpy as np
 from matplotlib.colors import ListedColormap
 
 
-def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
+def plot_results_with_decision_boundary(
+    classifier, X, Y, ax=None, title="", mode="auto"
+):
     """
     Visualizes the decision boundary of a binary classifier (class 0 vs class 1)
     along with the data points, while excluding class 2 from decision
@@ -28,8 +30,11 @@ def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
         - The decision boundary only separates class 0 and 1 regions.
     """
 
+    unique_classes = np.unique(Y)
+    use_multi = (mode == "multi") or (mode == "auto" and 2 in unique_classes)
+
     class_colors = {0: "#FF0000", 1: "#0000FF", 2: "#FFA500"}
-    bg_colors = ["#FFAAAA", "#AAAAFF"]
+    class_labels = {0: "Class 0", 1: "Class 1", 2: "Gap Class"}
 
     # Generate grid
     h = 0.1
@@ -38,8 +43,22 @@ def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
     grid = np.c_[xx.ravel(), yy.ravel()]
 
+    if use_multi:
+        bg_colors = ["#FFAAAA", "#AAAAFF", "#FFD580"]
+        proba = classifier.predict_proba(np.c_[X[:, 0], X[:, 1]])
+        Z = np.argmax(
+            classifier.predict_proba(np.c_[xx.ravel(), yy.ravel()]), axis=1
+        ).reshape(xx.shape)
+    else:
+        bg_colors = ["#FFAAAA", "#AAAAFF"]
+        Z = np.argmax(
+            classifier.predict_proba(np.c_[xx.ravel(), yy.ravel()])[:, :2], axis=1
+        ).reshape(xx.shape)
+
     proba = classifier.predict_proba(grid)
-    Z = np.argmax(proba[:, :2], axis=1).reshape(xx.shape)
+    Z = Z = np.argmax(proba, axis=1).reshape(
+        xx.shape
+    )  # np.argmax(proba[:, :2], axis=1).reshape(xx.shape)
 
     # Create axis if not passed
     if ax is None:
@@ -49,7 +68,6 @@ def plot_results_with_decision_boundary(classifier, X, Y, ax=None, title=""):
     ax.contourf(xx, yy, Z, cmap=ListedColormap(bg_colors), alpha=0.5)
 
     # Plot actual class 0 and 1 points
-    class_labels = ["Class 0", "Class 1", "Gap Class"]
     for class_value in np.unique(Y):
         ax.scatter(
             X[Y == class_value, 0],

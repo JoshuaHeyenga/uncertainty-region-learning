@@ -35,7 +35,7 @@ def main():
 
     seed = 42
     threshold = config["uncertainty_threshold"]
-    method = "oversampling"  # Options: "smote", "oversampling", "svm_smote"
+    method = "svm_smote"  # Options: "smote", "oversampling", "svm_smote"
 
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
@@ -48,26 +48,42 @@ def main():
     )
 
     evaluate_and_log_model(
-        classifier, X_test, Y_test, csv_path, method, "pre", seed, threshold
+        classifier,
+        X_test,
+        Y_test,
+        csv_path,
+        method,
+        "pre",
+        seed,
+        threshold,
+        gap_ratio=config["gap_ratio"],
     )
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     plot_results_with_decision_boundary(classifier, X, Y, ax=axes[0], title="Pre-Gap")
 
     # Assign gap class and augment
-    Y_with_gap, gap_mask = assign_gap_class(classifier, X, Y)
+    Y_train_with_gap, _ = assign_gap_class(
+        classifier, X_train, Y_train, threshold=config["uncertainty_threshold"]
+    )
 
-    counts_before = {label: np.sum(Y_with_gap == label) for label in [0, 1, 2]}
+    counts_before = {label: np.sum(Y_train_with_gap == label) for label in [0, 1, 2]}
     print(
         f"[Before augmentation] Class counts: 0 = {counts_before[0]}, 1 = {counts_before[1]}, 2 (gap) = {counts_before[2]}"
     )
 
     if method == "smote":
-        X_aug, Y_aug = augment_smote_gap_class(X, Y_with_gap, target_class=2)
+        X_aug, Y_aug = augment_smote_gap_class(
+            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+        )
     elif method == "oversampling":
-        X_aug, Y_aug = augment_oversampling_gap_class(X, Y_with_gap, target_class=2)
+        X_aug, Y_aug = augment_oversampling_gap_class(
+            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+        )
     elif method == "svm_smote":
-        X_aug, Y_aug = augment_svm_smote_gap_class(X, Y_with_gap, target_class=2)
+        X_aug, Y_aug = augment_svm_smote_gap_class(
+            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+        )
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -80,7 +96,15 @@ def main():
 
     # Now plot the augmented version
     evaluate_and_log_model(
-        classifier_aug, X_test, Y_test, csv_path, method, "post", seed, threshold
+        classifier_aug,
+        X_test,
+        Y_test,
+        csv_path,
+        method,
+        "post",
+        seed,
+        threshold,
+        gap_ratio=config["gap_ratio"],
     )
 
     plot_results_with_decision_boundary(

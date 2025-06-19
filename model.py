@@ -25,9 +25,9 @@ def clean_train_classifier(X_train, Y_train):
 
     classifier = MLPClassifier(
         hidden_layer_sizes=(50,),
-        activation="relu",
+        activation="relu",  # tanh, logistic, relu
         solver="adam",
-        max_iter=1000,
+        max_iter=2000,
         random_state=42,
     )
     classifier.fit(X_train, Y_train)
@@ -35,7 +35,7 @@ def clean_train_classifier(X_train, Y_train):
 
 
 def evaluate_and_log_model(
-    classifier, X_test, Y_test, file_path, method, stage, seed, threshold
+    classifier, X_test, Y_test, file_path, method, stage, seed, threshold, gap_ratio
 ):
     Y_pred = classifier.predict(X_test)
 
@@ -55,10 +55,11 @@ def evaluate_and_log_model(
             recall=recall_arr[class_label],
             f1=f1_arr[class_label],
             support=support_arr[class_label],
+            gap_ratio=gap_ratio,
         )
 
 
-def assign_gap_class(classifier, X, Y):
+def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]):
     """
     Assigns class label 2 (gap class) to data points with low classification confidence.
 
@@ -76,10 +77,13 @@ def assign_gap_class(classifier, X, Y):
             - ndarray: Boolean mask indicating which points were labeled as uncertain.
     """
 
+    if threshold is None:
+        threshold = threshold
+
     proba = classifier.predict_proba(X)
     confidence = np.max(proba, axis=1)
 
-    uncertain_mask = confidence < (1 - config["uncertainty_threshold"])
+    uncertain_mask = confidence < (1 - threshold)
 
     Y_extended = np.copy(Y)
     Y_extended[uncertain_mask] = 2
@@ -129,7 +133,7 @@ def augment_oversampling_gap_class(X, Y, target_class=2):
     return X_augmented, Y_augmented
 
 
-def augment_smote_gap_class(X, Y, target_class=2):
+def augment_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_ratio"]):
     """
     Augments the dataset by synthetically oversampling the gap class (label 2) using basic SMOTE.
 
@@ -147,10 +151,14 @@ def augment_smote_gap_class(X, Y, target_class=2):
             - ndarray: Corresponding label vector including labels for new samples.
     """
 
-    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
     if not needs_aug:
         print("No SMOTE needed.")
         return X, Y
+    else:
+        print(f"Augmenting gap class {target_class} to target count: {target_count}")
 
     smoter = SMOTE(sampling_strategy={target_class: target_count}, random_state=42)
     X_aug, Y_aug = smoter.fit_resample(X, Y)
@@ -158,7 +166,7 @@ def augment_smote_gap_class(X, Y, target_class=2):
     return X_aug, Y_aug
 
 
-def augment_svm_smote_gap_class(X, Y, target_class=2):
+def augment_svm_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_ratio"]):
     """
     Augments the dataset by synthetically oversampling the gap class (label 2)
     using SVM-SMOTE from imbalanced-learn.
@@ -176,7 +184,9 @@ def augment_svm_smote_gap_class(X, Y, target_class=2):
             - ndarray: Augmented feature matrix with new synthetic samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
-    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
     if not needs_aug:
         print("No SVM-SMOTE needed.")
         return X, Y
@@ -194,7 +204,7 @@ def augment_svm_smote_gap_class(X, Y, target_class=2):
     return X_aug, Y_aug
 
 
-def get_gap_class_target_count(Y, target_class=2):
+def get_gap_class_target_count(Y, target_class=2, ratio=config["gap_ratio"]):
     """
     Computes the target count for the gap class (label 2) and returns
     whether augmentation is needed based on the current distribution.
@@ -209,6 +219,7 @@ def get_gap_class_target_count(Y, target_class=2):
             - int: Target number of samples for the gap class.
     """
     counts = {label: np.sum(Y == label) for label in [0, 1, target_class]}
-    avg_count = int(np.mean([counts[0], counts[1]]))
-    needs_augmentation = counts[target_class] < avg_count
-    return needs_augmentation, avg_count
+    avg_base_class_count = np.mean([counts[0], counts[1]])
+    target_count = int(ratio * avg_base_class_count)
+    needs_augmentation = counts[target_class] < target_count
+    return needs_augmentation, target_count
