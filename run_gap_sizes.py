@@ -16,7 +16,7 @@ from model import (
 
 def run_gap_size_experiments():
     seed = 42
-    thresholds = [0.3, 0.35, 0.4, 0.45]
+    thresholds = [0.05, 0.1, 0.15, 0.2]  # [0.3, 0.35, 0.4, 0.45]
     gap_ratios = np.arange(0.3, 1.6, 0.1)  # 30% to 150%
     method = "smote"  # IMPORTANT: must match filtering at bottom!
     base_dir = "results"
@@ -31,10 +31,18 @@ def run_gap_size_experiments():
             print(f"Running: threshold={threshold}, gap_ratio={round(ratio, 2)}")
 
             classifier = clean_train_classifier(X_train, Y_train)
-            Y_with_gap, _ = assign_gap_class(classifier, X, Y, threshold)
+            Y_train_with_gap, _ = assign_gap_class(
+                classifier, X_train, Y_train, threshold
+            )
+
+            if np.sum(Y_train_with_gap == 2) == 0:
+                print(
+                    f"Skipping: No gap class samples for threshold {threshold}, ratio {ratio}"
+                )
+                continue
 
             X_aug, Y_aug = augment_smote_gap_class(
-                X, Y_with_gap, target_class=2, gap_ratio=ratio
+                X_train, Y_train_with_gap, target_class=2, gap_ratio=ratio
             )
             classifier_aug = clean_train_classifier(X_aug, Y_aug)
 
@@ -114,7 +122,7 @@ def run_gap_size_experiments():
                 ax.axhline(
                     y=pre[metric].mean(),
                     linestyle="--",
-                    color="gray",
+                    color=colors[metric],
                     label=f"Pre {metric.capitalize()}",
                 )
 
@@ -132,5 +140,62 @@ def run_gap_size_experiments():
     plt.show()
 
 
+def get_gap_size_trends():
+    # Load CSV
+    df = pd.read_csv("results/smote_gap_ratio_results.csv")
+
+    # Filter for Class 1 and Post-stage only
+    filtered = df[(df["class"] == 1) & (df["stage"] == "post")]
+
+    # Group by gap_ratio, compute average metrics across all thresholds
+    grouped = filtered.groupby("gap_ratio")[["precision", "recall", "f1"]].mean()
+
+    # Plotting
+    plt.figure(figsize=(8, 5))
+    for metric, color in zip(
+        ["precision", "recall", "f1"], ["gold", "crimson", "dodgerblue"]
+    ):
+        plt.plot(
+            grouped.index,
+            grouped[metric],
+            marker="o",
+            label=metric.capitalize(),
+            color=color,
+        )
+
+    plt.title("Average Class 1 Scores vs Gap Ratio (across thresholds)")
+    plt.xlabel("Gap Ratio")
+    plt.ylabel("Score")
+    plt.grid(True)
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.show()
+
+
+def best_ratios():
+    combined_df = pd.read_csv(os.path.join("results", "smote_gap_ratio_results.csv"))
+    df = combined_df[
+        (combined_df["class"] == 1) & (combined_df["method"].str.startswith("smote"))
+    ]
+
+    best_ratios = (
+        df[df["stage"] == "post"]
+        .groupby("threshold", group_keys=False)
+        .apply(lambda x: x.loc[x["f1"].idxmax()][["gap_ratio", "f1"]])
+        .reset_index()
+    )
+
+    plt.figure(figsize=(6, 4))
+    plt.plot(best_ratios["threshold"], best_ratios["gap_ratio"], marker="o")
+    plt.title("Best Gap Ratio per Threshold (Max F1)")
+    plt.xlabel("Threshold")
+    plt.ylabel("Best Gap Ratio")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     run_gap_size_experiments()
+    # get_gap_size_trends()
+    # best_ratios()

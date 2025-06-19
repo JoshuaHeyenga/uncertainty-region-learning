@@ -86,11 +86,11 @@ def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]
     uncertain_mask = confidence < (1 - threshold)
 
     Y_extended = np.copy(Y)
-    Y_extended[uncertain_mask] = 2
+    Y_extended[uncertain_mask] = config["gap_class_label"]
     return Y_extended, uncertain_mask
 
 
-def augment_oversampling_gap_class(X, Y, target_class=2):
+def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"]):
     """
     Augments the dataset by oversampling the gap class (label 2) using basic oversampling.
 
@@ -133,7 +133,9 @@ def augment_oversampling_gap_class(X, Y, target_class=2):
     return X_augmented, Y_augmented
 
 
-def augment_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_ratio"]):
+def augment_smote_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
     """
     Augments the dataset by synthetically oversampling the gap class (label 2) using basic SMOTE.
 
@@ -166,7 +168,9 @@ def augment_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_ratio"])
     return X_aug, Y_aug
 
 
-def augment_svm_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_ratio"]):
+def augment_svm_smote_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
     """
     Augments the dataset by synthetically oversampling the gap class (label 2)
     using SVM-SMOTE from imbalanced-learn.
@@ -204,7 +208,9 @@ def augment_svm_smote_gap_class(X, Y, target_class=2, gap_ratio=config["gap_rati
     return X_aug, Y_aug
 
 
-def get_gap_class_target_count(Y, target_class=2, ratio=config["gap_ratio"]):
+def get_gap_class_target_count(
+    Y, target_class=config["gap_class_label"], ratio=config["gap_ratio"]
+):
     """
     Computes the target count for the gap class (label 2) and returns
     whether augmentation is needed based on the current distribution.

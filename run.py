@@ -59,30 +59,46 @@ def main():
         gap_ratio=config["gap_ratio"],
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    plot_results_with_decision_boundary(classifier, X, Y, ax=axes[0], title="Pre-Gap")
+    try:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        plot_results_with_decision_boundary(
+            classifier, X, Y, ax=axes[0], title="Pre-Gap"
+        )
+    except Exception as e:
+        print(f"Error during visualization: {e}")
 
     # Assign gap class and augment
     Y_train_with_gap, _ = assign_gap_class(
         classifier, X_train, Y_train, threshold=config["uncertainty_threshold"]
     )
 
-    counts_before = {label: np.sum(Y_train_with_gap == label) for label in [0, 1, 2]}
-    print(
-        f"[Before augmentation] Class counts: 0 = {counts_before[0]}, 1 = {counts_before[1]}, 2 (gap) = {counts_before[2]}"
-    )
+    labels_present = np.unique(Y_train_with_gap)
+    print(f"Labels present after gap assignment: {labels_present}")
+
+    unique_labels, counts = np.unique(Y_train_with_gap, return_counts=True)
+    for label, count in zip(unique_labels, counts):
+        print(f"Class {label}: {count} samples")
 
     if method == "smote":
         X_aug, Y_aug = augment_smote_gap_class(
-            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+            X_train,
+            Y_train_with_gap,
+            target_class=config["gap_class_label"],
+            gap_ratio=config["gap_ratio"],
         )
     elif method == "oversampling":
         X_aug, Y_aug = augment_oversampling_gap_class(
-            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+            X_train,
+            Y_train_with_gap,
+            target_class=config["gap_class_label"],
+            gap_ratio=config["gap_ratio"],
         )
     elif method == "svm_smote":
         X_aug, Y_aug = augment_svm_smote_gap_class(
-            X_train, Y_train_with_gap, target_class=2, gap_ratio=config["gap_ratio"]
+            X_train,
+            Y_train_with_gap,
+            target_class=config["gap_class_label"],
+            gap_ratio=config["gap_ratio"],
         )
     else:
         raise ValueError(f"Unknown method: {method}")
@@ -107,11 +123,14 @@ def main():
         gap_ratio=config["gap_ratio"],
     )
 
-    plot_results_with_decision_boundary(
-        classifier_aug, X_aug, Y_aug, ax=axes[1], title="Post-Gap"
-    )  # Y_with_gap
-    plt.tight_layout()
-    plt.show()
+    try:
+        plot_results_with_decision_boundary(
+            classifier_aug, X_aug, Y_aug, ax=axes[1], title="Post-Gap"
+        )  # Y_with_gap
+        plt.tight_layout()
+        plt.show()
+    except Exception as e:
+        print(f"Error during visualization: {e}")
 
 
 if __name__ == "__main__":

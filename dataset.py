@@ -1,6 +1,8 @@
+import pandas as pd
 import yaml
 from sklearn.datasets import make_blobs, make_classification
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
@@ -18,7 +20,7 @@ def generate_dataset():
         Y (ndarray): Corresponding label vector of shape (n_samples,).
     """
 
-    mode = "make_blobs"
+    mode = "wine"  # Options: "make_blobs", "make_classification", "iris"
 
     if mode == "make_blobs":
         X, Y = make_blobs(
@@ -41,6 +43,41 @@ def generate_dataset():
             weights=[0.6, 0.4],  # optional imbalance
             random_state=config["random_state"],
         )
+        return X, Y
+
+    if mode == "iris":
+        df = pd.read_csv("data/Iris.csv")
+
+        # Drop Id column if exists
+        df = df.drop(columns=["Id"], errors="ignore")
+        # df = df[df["Species"].isin(["Iris-setosa", "Iris-versicolor"])]
+
+        # Encode species as integer labels (0, 1, 2)
+        label_encoder = LabelEncoder()
+        Y = label_encoder.fit_transform(df["Species"])
+        X = df.drop(columns=["Species"]).values
+
+        # Optional: normalize features
+        X = StandardScaler().fit_transform(X)
+
+        return X, Y
+
+    if mode == "wine":
+        df = pd.read_csv("data/WineQT.csv")
+
+        # Drop any missing values just in case
+        df = df.dropna()
+
+        # if binary:
+        # Binary classification: Good (6 or higher) vs. Bad
+        #    df["quality"] = (df["quality"] >= 6).astype(int)
+
+        Y = df["quality"].values
+        X = df.drop(columns=["quality"]).values
+
+        # Normalize features
+        X = StandardScaler().fit_transform(X)
+
         return X, Y
 
 
