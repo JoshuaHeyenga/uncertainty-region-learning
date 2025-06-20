@@ -6,7 +6,7 @@ random_state: 42
 gap_class_label: 99
 
 gap_ratio: 0.9
-uncertainty_threshold: 0.05 #0.2 worked best -> check ob 0.1 oder 0.11 schritte
+uncertainty_threshold: 0.3 #0.2 worked best -> check ob 0.1 oder 0.11 schritte
 # Grafik mit Kurve wie sich modell verändert bei ändern des thresholds
 # mehrere seeds verwenden (3-5) zum durchprobieren (min linie, standard deviation als range)
 # Design entscheidungen erklären 

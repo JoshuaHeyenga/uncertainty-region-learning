@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from yaml import safe_load
 
 from dataset import generate_dataset, split_dataset
 from logger import generate_filename_for_gap
@@ -13,10 +14,15 @@ from model import (
     evaluate_and_log_model,
 )
 
+with open("config.yaml", "r") as f:
+    config = safe_load(f)
+
+GAP_LABEL = config["gap_class_label"]  # Default is 2, but can be set in config.yaml
+
 
 def run_gap_size_experiments():
     seed = 42
-    thresholds = [0.05, 0.1, 0.15, 0.2]  # [0.3, 0.35, 0.4, 0.45]
+    thresholds = [0.3, 0.35, 0.4, 0.45]  # [0.2, 0.25, 0.15, 0.2]  #
     gap_ratios = np.arange(0.3, 1.6, 0.1)  # 30% to 150%
     method = "smote"  # IMPORTANT: must match filtering at bottom!
     base_dir = "results"
@@ -35,14 +41,14 @@ def run_gap_size_experiments():
                 classifier, X_train, Y_train, threshold
             )
 
-            if np.sum(Y_train_with_gap == 2) == 0:
+            if np.sum(Y_train_with_gap == GAP_LABEL) == 0:
                 print(
                     f"Skipping: No gap class samples for threshold {threshold}, ratio {ratio}"
                 )
                 continue
 
             X_aug, Y_aug = augment_smote_gap_class(
-                X_train, Y_train_with_gap, target_class=2, gap_ratio=ratio
+                X_train, Y_train_with_gap, target_class=GAP_LABEL, gap_ratio=ratio
             )
             classifier_aug = clean_train_classifier(X_aug, Y_aug)
 
@@ -74,70 +80,86 @@ def run_gap_size_experiments():
     # === Visualization: Only show subplots for thresholds with post data ===
     combined_df = pd.read_csv(os.path.join(base_dir, "smote_gap_ratio_results.csv"))
 
-    df = combined_df[
-        (combined_df["class"] == 1) & (combined_df["method"].str.startswith("smote"))
-    ]
+    # Exclude gap class
+    base_class_counts = combined_df[combined_df["stage"] == "pre"]
+    base_class_counts = base_class_counts[base_class_counts["class"] != GAP_LABEL]
 
-    thresholds_with_data = sorted(df["threshold"].dropna().unique())
-    num_cols = len(thresholds_with_data)
-    fig, axes = plt.subplots(
-        1, num_cols, figsize=(4 * num_cols, 5), sharey=True, constrained_layout=True
+    # Compute top 2 most frequent base classes
+    top_classes = (
+        base_class_counts["class"]
+        .value_counts()
+        .sort_values(ascending=False)
+        .head(2)
+        .index.tolist()
     )
+    print(f"Top two base classes being plotted: {top_classes}")
 
-    for ax, threshold in zip(axes, thresholds_with_data):
-        sub_df = df[df["threshold"] == threshold]
-        valid_ratios = sorted(
-            sub_df[sub_df["stage"] == "post"]["gap_ratio"].dropna().unique()
-        )
-
-        if not valid_ratios:
-            print(f"Skipping threshold {threshold} — no valid augmented post data.")
-            ax.axis("off")
-            continue
-
-        pre_df = combined_df[
-            (combined_df["threshold"] == threshold)
-            & (combined_df["class"] == 1)
-            & (combined_df["stage"] == "pre")
+    for class_id in top_classes:
+        df = combined_df[
+            (combined_df["class"] == class_id)
+            & (combined_df["method"].str.startswith("smote"))
         ]
-        pre = pre_df.groupby("gap_ratio").mean(numeric_only=True).loc[valid_ratios]
 
-        post = (
-            sub_df[sub_df["stage"] == "post"]
-            .groupby("gap_ratio")
-            .mean(numeric_only=True)
-            .loc[valid_ratios]
+        thresholds_with_data = sorted(df["threshold"].dropna().unique())
+        num_cols = len(thresholds_with_data)
+        fig, axes = plt.subplots(
+            1, num_cols, figsize=(4 * num_cols, 5), sharey=True, constrained_layout=True
         )
 
-        colors = {"precision": "gold", "recall": "crimson", "f1": "dodgerblue"}
-        for metric in ["precision", "recall", "f1"]:
-            ax.plot(
-                valid_ratios,
-                post[metric],
-                marker="o",
-                label=f"Post {metric.capitalize()}",
-                color=colors[metric],
+        for ax, threshold in zip(axes, thresholds_with_data):
+            sub_df = df[df["threshold"] == threshold]
+            valid_ratios = sorted(
+                sub_df[sub_df["stage"] == "post"]["gap_ratio"].dropna().unique()
             )
-            if not pre.empty:
-                ax.axhline(
-                    y=pre[metric].mean(),
-                    linestyle="--",
+
+            if not valid_ratios:
+                print(f"Skipping threshold {threshold} — no valid augmented post data.")
+                ax.axis("off")
+                continue
+
+            pre_df = combined_df[
+                (combined_df["threshold"] == threshold)
+                & (combined_df["class"] == 1)
+                & (combined_df["stage"] == "pre")
+            ]
+            pre = pre_df.groupby("gap_ratio").mean(numeric_only=True).loc[valid_ratios]
+
+            post = (
+                sub_df[sub_df["stage"] == "post"]
+                .groupby("gap_ratio")
+                .mean(numeric_only=True)
+                .loc[valid_ratios]
+            )
+
+            colors = {"precision": "gold", "recall": "crimson", "f1": "dodgerblue"}
+            for metric in ["precision", "recall", "f1"]:
+                ax.plot(
+                    valid_ratios,
+                    post[metric],
+                    marker="o",
+                    label=f"Post {metric.capitalize()}",
                     color=colors[metric],
-                    label=f"Pre {metric.capitalize()}",
                 )
+                if not pre.empty:
+                    ax.axhline(
+                        y=pre[metric].mean(),
+                        linestyle="--",
+                        color=colors[metric],
+                        label=f"Pre {metric.capitalize()}",
+                    )
 
-        ax.set_title(f"Threshold = {threshold}")
-        ax.set_xlabel("Gap Ratio")
-        ax.grid(True)
-        if ax == axes[0]:
-            ax.set_ylabel("Score")
-            ax.legend(loc="upper left")
+            ax.set_title(f"Threshold = {threshold}")
+            ax.set_xlabel("Gap Ratio")
+            ax.grid(True)
+            if ax == axes[0]:
+                ax.set_ylabel("Score")
+                ax.legend(loc="upper left")
 
-    plt.suptitle(
-        "SMOTE — Class 1 Scores vs Gap Ratio",
-        fontsize=14,
-    )
-    plt.show()
+        plt.suptitle(
+            f"SMOTE — Class {class_id} Scores vs Gap Ratio",
+            fontsize=14,
+        )
+        plt.show()
 
 
 def get_gap_size_trends():

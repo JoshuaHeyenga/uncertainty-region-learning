@@ -39,8 +39,17 @@ def evaluate_and_log_model(
 ):
     Y_pred = classifier.predict(X_test)
 
+    class_labels = sorted(list(set(np.unique(Y_test)) & set(np.unique(Y_pred))))
+    class_labels = [
+        label for label in class_labels if label != config["gap_class_label"]
+    ]
+
+    if not class_labels:
+        print("No valid base classes to evaluate.")
+        return
+
     precision_arr, recall_arr, f1_arr, support_arr = precision_recall_fscore_support(
-        Y_test, Y_pred, labels=[0, 1], zero_division=0
+        Y_test, Y_pred, labels=class_labels, zero_division=0
     )
 
     for class_label in [0, 1]:
@@ -153,9 +162,18 @@ def augment_smote_gap_class(
             - ndarray: Corresponding label vector including labels for new samples.
     """
 
-    needs_aug, target_count = get_gap_class_target_count(
+    needs_aug, target_count, avg_top_two, current_gap_size = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
+
+    print(f"--- SMOTE Decision Log ---")
+    print(f"Target gap class label: {target_class}")
+    print(f"Current gap class size: {current_gap_size}")
+    print(f"Average of top 2 base classes: {avg_top_two}")
+    print(f"Target count (gap_ratio={gap_ratio}): {target_count}")
+    print(f"Needs augmentation: {needs_aug}")
+    print(f"---------------------------")
+
     if not needs_aug:
         print("No SMOTE needed.")
         return X, Y
@@ -224,8 +242,20 @@ def get_gap_class_target_count(
             - bool: Whether augmentation is needed.
             - int: Target number of samples for the gap class.
     """
-    counts = {label: np.sum(Y == label) for label in [0, 1, target_class]}
-    avg_base_class_count = np.mean([counts[0], counts[1]])
-    target_count = int(ratio * avg_base_class_count)
-    needs_augmentation = counts[target_class] < target_count
-    return needs_augmentation, target_count
+    class_counts = {
+        label: np.sum(Y == label) for label in np.unique(Y) if label != target_class
+    }
+
+    if len(class_counts) < 2:
+        # Not enough base classes to compute average of top two
+        return False, 0
+
+    # Get the counts of the two largest classes
+    top_two_counts = sorted(class_counts.values(), reverse=True)[:2]
+    avg_top_two = np.mean(top_two_counts)
+
+    target_count = int(ratio * avg_top_two)
+    current_gap_count = np.sum(Y == target_class)
+
+    needs_augmentation = current_gap_count < target_count
+    return needs_augmentation, target_count, avg_top_two, current_gap_count
