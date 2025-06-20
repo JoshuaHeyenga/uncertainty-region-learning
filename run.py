@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
+from sklearn.metrics import accuracy_score
 
 from dataset import generate_dataset, split_dataset
 from logger import generate_filename, log_metrics_to_csv
@@ -59,6 +60,11 @@ def main():
         gap_ratio=config["gap_ratio"],
     )
 
+    # Compute accuracy
+    Y_pred = classifier.predict(X_test)
+    acc = accuracy_score(Y_test, Y_pred)
+    print(f"[PRE-GAP] Accuracy: {acc:.4f}")
+
     try:
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         plot_results_with_decision_boundary(
@@ -86,6 +92,7 @@ def main():
             target_class=config["gap_class_label"],
             gap_ratio=config["gap_ratio"],
         )
+
     elif method == "oversampling":
         X_aug, Y_aug = augment_oversampling_gap_class(
             X_train,
@@ -117,6 +124,11 @@ def main():
         threshold,
         gap_ratio=config["gap_ratio"],
     )
+
+    # Compute accuracy
+    Y_pred_aug = classifier_aug.predict(X_test)
+    acc_aug = accuracy_score(Y_test, Y_pred_aug)
+    print(f"[POST-GAP] Accuracy: {acc_aug:.4f}")
 
     try:
         plot_results_with_decision_boundary(
