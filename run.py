@@ -35,7 +35,7 @@ def main():
 
     seed = 42
     threshold = config["uncertainty_threshold"]
-    method = "svm_smote"  # Options: "smote", "oversampling", "svm_smote"
+    method = "smote"  # Options: "smote", "oversampling", "svm_smote"
 
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
@@ -102,11 +102,6 @@ def main():
         )
     else:
         raise ValueError(f"Unknown method: {method}")
-
-    counts_after = {label: np.sum(Y_aug == label) for label in [0, 1, 2]}
-    print(
-        f"[After augmentation]  Class counts: 0 = {counts_after[0]}, 1 = {counts_after[1]}, 2 (gap) = {counts_after[2]}"
-    )
 
     classifier_aug = clean_train_classifier(X_aug, Y_aug)
 

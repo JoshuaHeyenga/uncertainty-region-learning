@@ -1,6 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 from matplotlib.colors import ListedColormap
+
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+GAP_LABEL = config["gap_class_label"]
 
 
 def plot_results_with_decision_boundary(
@@ -31,10 +37,10 @@ def plot_results_with_decision_boundary(
     """
 
     unique_classes = np.unique(Y)
-    use_multi = (mode == "multi") or (mode == "auto" and 2 in unique_classes)
+    use_multi = (mode == "multi") or (mode == "auto" and GAP_LABEL in unique_classes)
 
-    class_colors = {0: "#FF0000", 1: "#0000FF", 2: "#FFA500"}
-    class_labels = {0: "Class 0", 1: "Class 1", 2: "Gap Class"}
+    class_colors = {0: "#FF0000", 1: "#0000FF", GAP_LABEL: "#FFA500"}
+    class_labels = {0: "Class 0", 1: "Class 1", GAP_LABEL: "Gap Class"}
 
     # Generate grid
     h = 0.1

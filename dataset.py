@@ -20,7 +20,7 @@ def generate_dataset():
         Y (ndarray): Corresponding label vector of shape (n_samples,).
     """
 
-    mode = "wine"  # Options: "make_blobs", "make_classification", "iris"
+    mode = "make_blobs"  # Options: "make_blobs", "make_classification", "iris"
 
     if mode == "make_blobs":
         X, Y = make_blobs(
