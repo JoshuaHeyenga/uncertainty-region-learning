@@ -159,33 +159,47 @@ def run_gap_size_experiments():
 
 
 def get_gap_size_trends():
-    # Load CSV
     df = pd.read_csv("results/smote_gap_ratio_results.csv")
 
-    # Filter for Class 1 and Post-stage only
-    filtered = df[(df["class"] == 1) & (df["stage"] == "post")]
+    # Only keep post-augmentation results
+    post_df = df[df["stage"] == "post"]
 
-    # Group by gap_ratio, compute average metrics across all thresholds
-    grouped = filtered.groupby("gap_ratio")[["precision", "recall", "f1"]].mean()
+    # Get all class labels (excluding gap class)
+    base_classes = sorted(post_df["class"].unique())
+    base_classes = [c for c in base_classes if c != GAP_LABEL]
 
-    # Plotting
-    plt.figure(figsize=(8, 5))
-    for metric, color in zip(
-        ["precision", "recall", "f1"], ["gold", "crimson", "dodgerblue"]
-    ):
-        plt.plot(
-            grouped.index,
-            grouped[metric],
-            marker="o",
-            label=metric.capitalize(),
-            color=color,
-        )
+    # Plotting setup
+    num_classes = len(base_classes)
+    fig, axes = plt.subplots(1, num_classes, figsize=(6 * num_classes, 5), sharey=True)
 
-    plt.title("Average Class 1 Scores vs Gap Ratio (across thresholds)")
-    plt.xlabel("Gap Ratio")
-    plt.ylabel("Score")
-    plt.grid(True)
-    plt.legend(loc="lower right")
+    if num_classes == 1:
+        axes = [axes]  # Ensure iterable if only one subplot
+
+    for ax, class_id in zip(axes, base_classes):
+        filtered = post_df[post_df["class"] == class_id]
+
+        # Group by gap_ratio
+        grouped = filtered.groupby("gap_ratio")[["precision", "recall", "f1"]].mean()
+
+        for metric, color in zip(
+            ["precision", "recall", "f1"], ["gold", "crimson", "dodgerblue"]
+        ):
+            ax.plot(
+                grouped.index,
+                grouped[metric],
+                marker="o",
+                label=metric.capitalize(),
+                color=color,
+            )
+
+        ax.set_title(f"Class {class_id} — Avg Scores vs Gap Ratio")
+        ax.set_xlabel("Gap Ratio")
+        ax.grid(True)
+        if ax == axes[0]:
+            ax.set_ylabel("Score")
+        ax.legend(loc="lower right")
+
+    plt.suptitle("SMOTE — Class-wise Average Scores vs Gap Ratio", fontsize=16)
     plt.tight_layout()
     plt.show()
 
@@ -214,6 +228,6 @@ def best_ratios():
 
 
 if __name__ == "__main__":
-    run_gap_size_experiments()
-    # get_gap_size_trends()
+    # run_gap_size_experiments()
+    get_gap_size_trends()
     # best_ratios()
