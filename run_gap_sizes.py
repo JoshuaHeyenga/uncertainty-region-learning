@@ -32,6 +32,12 @@ def run_gap_size_experiments():
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
 
+    unique, counts = np.unique(Y_train, return_counts=True)
+    class_counts = dict(zip(unique, counts))
+    class_counts = {k: v for k, v in class_counts.items() if k != GAP_LABEL}
+    top_classes = sorted(class_counts, key=class_counts.get, reverse=True)[:2]
+    print(f"Top 2 base classes (new): {top_classes}")
+
     for threshold in thresholds:
         for ratio in gap_ratios:
             print(f"Running: threshold={threshold}, gap_ratio={round(ratio, 2)}")
@@ -84,16 +90,6 @@ def run_gap_size_experiments():
     base_class_counts = combined_df[combined_df["stage"] == "pre"]
     base_class_counts = base_class_counts[base_class_counts["class"] != GAP_LABEL]
 
-    # Compute top 2 most frequent base classes
-    top_classes = (
-        base_class_counts["class"]
-        .value_counts()
-        .sort_values(ascending=False)
-        .head(2)
-        .index.tolist()
-    )
-    print(f"Top two base classes being plotted: {top_classes}")
-
     for class_id in top_classes:
         df = combined_df[
             (combined_df["class"] == class_id)
@@ -119,7 +115,7 @@ def run_gap_size_experiments():
 
             pre_df = combined_df[
                 (combined_df["threshold"] == threshold)
-                & (combined_df["class"] == 1)
+                & (combined_df["class"] == class_id)
                 & (combined_df["stage"] == "pre")
             ]
             pre = pre_df.groupby("gap_ratio").mean(numeric_only=True).loc[valid_ratios]

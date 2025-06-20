@@ -27,7 +27,7 @@ def clean_train_classifier(X_train, Y_train):
         hidden_layer_sizes=(50,),
         activation="relu",  # tanh, logistic, relu
         solver="adam",
-        max_iter=2000,
+        max_iter=10000,
         random_state=42,
     )
     classifier.fit(X_train, Y_train)
@@ -52,7 +52,7 @@ def evaluate_and_log_model(
         Y_test, Y_pred, labels=class_labels, zero_division=0
     )
 
-    for class_label in [0, 1]:
+    for i, class_label in enumerate(class_labels):
         log_metrics_to_csv(
             file_path=file_path,
             method=method,
@@ -60,10 +60,10 @@ def evaluate_and_log_model(
             seed=seed,
             class_label=class_label,
             threshold=threshold,
-            precision=precision_arr[class_label],
-            recall=recall_arr[class_label],
-            f1=f1_arr[class_label],
-            support=support_arr[class_label],
+            precision=precision_arr[i],
+            recall=recall_arr[i],
+            f1=f1_arr[i],
+            support=support_arr[i],
             gap_ratio=gap_ratio,
         )
 
@@ -162,14 +162,14 @@ def augment_smote_gap_class(
             - ndarray: Corresponding label vector including labels for new samples.
     """
 
-    needs_aug, target_count, avg_top_two, current_gap_size = get_gap_class_target_count(
-        Y, target_class, ratio=gap_ratio
+    needs_aug, target_count, avg_top_two, current_gap_size, top_two_labels = (
+        get_gap_class_target_count(Y, target_class, ratio=gap_ratio)
     )
 
     print(f"--- SMOTE Decision Log ---")
     print(f"Target gap class label: {target_class}")
+    print(f"Top two base classes: {top_two_labels} with sizes {avg_top_two}")
     print(f"Current gap class size: {current_gap_size}")
-    print(f"Average of top 2 base classes: {avg_top_two}")
     print(f"Target count (gap_ratio={gap_ratio}): {target_count}")
     print(f"Needs augmentation: {needs_aug}")
     print(f"---------------------------")
@@ -254,8 +254,18 @@ def get_gap_class_target_count(
     top_two_counts = sorted(class_counts.values(), reverse=True)[:2]
     avg_top_two = np.mean(top_two_counts)
 
+    top_two_classes = sorted(class_counts.items(), key=lambda x: x[1], reverse=True)[:2]
+    avg_top_two = np.mean([v for _, v in top_two_classes])
+    top_two_labels = [k for k, _ in top_two_classes]
+
     target_count = int(ratio * avg_top_two)
     current_gap_count = np.sum(Y == target_class)
 
     needs_augmentation = current_gap_count < target_count
-    return needs_augmentation, target_count, avg_top_two, current_gap_count
+    return (
+        needs_augmentation,
+        target_count,
+        avg_top_two,
+        current_gap_count,
+        top_two_labels,
+    )
