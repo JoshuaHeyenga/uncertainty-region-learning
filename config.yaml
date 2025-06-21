@@ -1,8 +1,8 @@
-n_samples: 500
+n_samples: 1000
 centers: 2
-cluster_std: 3 
+cluster_std: 5 
 random_state: 42
 
 gap_class_label: 99
-gap_ratio: 1.0
-uncertainty_threshold: 0.4 
+gap_ratio: 0.8
+uncertainty_threshold: 0.3

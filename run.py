@@ -59,6 +59,9 @@ def main() -> None:
     evaluate_and_visualize_augmented(
         classifier_aug, X_test, y_test, X_aug, y_aug, axes[1]
     )
+    evaluate_on_original_training_data(
+        classifier_aug, X_train, y_train_with_gap, X_aug, y_aug
+    )
 
     plt.tight_layout()
     plt.show()
@@ -179,10 +182,6 @@ def evaluate_and_visualize_augmented(
         ax: Matplotlib axis to draw the decision boundary on.
     """
 
-    y_pred = classifier.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    print(f"[POST-GAP] Accuracy: {acc:.4f}")
-
     evaluate_and_log_model(
         classifier=classifier,
         X_test=X_test,
@@ -201,6 +200,19 @@ def evaluate_and_visualize_augmented(
         )
     except Exception as e:
         print(f"Error during visualization: {e}")
+
+
+def evaluate_on_original_training_data(
+    classifier, X_train_orig, y_train_with_gap, X_aug, y_aug
+):
+    # Identify indices of synthetic samples
+    orig_count = len(X_train_orig)
+    X_orig_only = X_aug[:orig_count]
+    y_orig_only = y_aug[:orig_count]
+
+    y_pred_orig = classifier.predict(X_orig_only)
+    acc_orig = accuracy_score(y_orig_only, y_pred_orig)
+    print(f"[POST GAP (ON ORIGINAL DATA)] Accuracy: {acc_orig:.4f}")
 
 
 if __name__ == "__main__":

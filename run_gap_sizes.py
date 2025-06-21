@@ -16,7 +16,7 @@ from model import (
 
 def run_gap_size_experiments():
     seed = 42
-    thresholds = [0.05, 0.1, 0.15, 0.2]  # [0.3, 0.35, 0.4, 0.45]
+    thresholds = [0.3, 0.35, 0.4, 0.45]  # [0.05, 0.1, 0.15, 0.2]  #
     gap_ratios = np.arange(0.3, 1.6, 0.1)  # 30% to 150%
     method = "smote"  # IMPORTANT: must match filtering at bottom!
     base_dir = "results"
@@ -25,6 +25,8 @@ def run_gap_size_experiments():
     # Load and split dataset once
     X, Y = generate_dataset()
     X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
+
+    orig_mask = np.ones(len(X_train), dtype=bool)
 
     for threshold in thresholds:
         for ratio in gap_ratios:
