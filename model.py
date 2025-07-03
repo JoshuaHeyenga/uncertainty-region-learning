@@ -1,7 +1,11 @@
 import numpy as np
 import yaml
 from imblearn.over_sampling import SMOTE, SVMSMOTE
-from sklearn.metrics import classification_report, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    precision_recall_fscore_support,
+)
 from sklearn.neural_network import MLPClassifier
 from sklearn.utils import resample
 
@@ -28,7 +32,7 @@ def clean_train_classifier(X_train, Y_train):
         activation="relu",  # tanh, logistic, relu
         solver="adam",
         max_iter=2000,
-        random_state=42,
+        random_state=config["random_state"],
     )
     classifier.fit(X_train, Y_train)
     return classifier
@@ -37,13 +41,16 @@ def clean_train_classifier(X_train, Y_train):
 def evaluate_and_log_model(
     classifier, X_test, Y_test, file_path, method, stage, seed, threshold, gap_ratio
 ):
-    Y_pred = classifier.predict(X_test)
+    y_pred = classifier.predict(X_test)
+    acc = accuracy_score(Y_test, y_pred)
 
-    precision_arr, recall_arr, f1_arr, support_arr = precision_recall_fscore_support(
-        Y_test, Y_pred, labels=[0, 1], zero_division=0
+    precision, recall, f1, support = precision_recall_fscore_support(
+        Y_test, y_pred, labels=np.unique(Y_test), zero_division=0
     )
 
-    for class_label in [0, 1]:
+    for class_label, p, r, f, s in zip(
+        np.unique(Y_test), precision, recall, f1, support
+    ):
         log_metrics_to_csv(
             file_path=file_path,
             method=method,
@@ -51,11 +58,12 @@ def evaluate_and_log_model(
             seed=seed,
             class_label=class_label,
             threshold=threshold,
-            precision=precision_arr[class_label],
-            recall=recall_arr[class_label],
-            f1=f1_arr[class_label],
-            support=support_arr[class_label],
             gap_ratio=gap_ratio,
+            precision=p,
+            recall=r,
+            f1=f,
+            support=s,
+            accuracy=acc,  # ✅ Accuracy is passed here
         )
 
 
@@ -123,7 +131,7 @@ def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"])
         Y_target,
         replace=True,
         n_samples=n_to_generate,
-        random_state=42,
+        random_state=config["random_state"],
     )
 
     # Concatenate original and new samples
@@ -162,7 +170,10 @@ def augment_smote_gap_class(
     else:
         print(f"Augmenting gap class {target_class} to target count: {target_count}")
 
-    smoter = SMOTE(sampling_strategy={target_class: target_count}, random_state=42)
+    smoter = SMOTE(
+        sampling_strategy={target_class: target_count},
+        random_state=config["random_state"],
+    )
     X_aug, Y_aug = smoter.fit_resample(X, Y)
 
     return X_aug, Y_aug
@@ -198,7 +209,7 @@ def augment_svm_smote_gap_class(
     try:
         smoter = SVMSMOTE(
             sampling_strategy={target_class: target_count},
-            random_state=42,
+            random_state=config["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:

@@ -9,3 +9,5 @@ Synthetic Dataset Results
   <img src="plot_results/SMOTE_SynthesizedData.png" alt="SMOTE" width="30%" />
   <img src="plot_results/SVM_SMOTE_SynthesizedData.png" alt="SVM-SMOTE" width="30%" />
 </p>
+
+method,stage,seed,class,threshold,gap_ratio,precision,recall,f1,support

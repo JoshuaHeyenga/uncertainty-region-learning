@@ -59,9 +59,7 @@ def main() -> None:
     evaluate_and_visualize_augmented(
         classifier_aug, X_test, y_test, X_aug, y_aug, axes[1]
     )
-    evaluate_on_original_training_data(
-        classifier_aug, X_train, y_train_with_gap, X_aug, y_aug
-    )
+    evaluate_on_original_training_data(classifier_aug, X_test, y_test, X_aug, y_aug)
 
     plt.tight_layout()
     plt.show()
@@ -212,7 +210,7 @@ def evaluate_on_original_training_data(
 
     y_pred_orig = classifier.predict(X_orig_only)
     acc_orig = accuracy_score(y_orig_only, y_pred_orig)
-    print(f"[POST GAP (ON ORIGINAL DATA)] Accuracy: {acc_orig:.4f}")
+    print(f"[POST GAP (ON ORIGINAL TEST DATA)] Accuracy: {acc_orig:.4f}")
 
 
 if __name__ == "__main__":
