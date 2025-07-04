@@ -15,28 +15,26 @@ from model import (
 )
 
 # === Configuration ===
-GAP_CLASS_LABEL = CONFIG["gap_class_label"]  # should be 99
+GAP_CLASS_LABEL = CONFIG["gap_class_label"]
 RANDOM_STATE: int = CONFIG["random_state"]
 thresholds = [0.3, 0.35, 0.4, 0.45]
-gap_ratios = np.arange(0.3, 1.6, 0.1)  # 30% to 150%
-method = "smote"  # must match filtering at bottom
+gap_ratios = np.arange(0.3, 1.6, 0.1)
+method = "smote"
 base_dir = "results"
 os.makedirs(base_dir, exist_ok=True)
 
 
 def run_gap_size_experiments():
     # Load and split dataset once
-    X, Y = generate_dataset()
-    X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
-
     for threshold in thresholds:
         for ratio in gap_ratios:
+            X, Y = generate_dataset()
+            X_train, X_test, Y_train, Y_test = split_dataset(X, Y)
+
             print(f"Running: threshold={threshold}, gap_ratio={round(ratio, 2)}")
 
-            # Train baseline classifier
             classifier = clean_train_classifier(X_train, Y_train)
 
-            # Assign gap class
             Y_train_with_gap, _ = assign_gap_class(
                 classifier, X_train, Y_train, threshold
             )
@@ -47,7 +45,6 @@ def run_gap_size_experiments():
                 )
                 continue
 
-            # Augment gap class and retrain
             X_aug, Y_aug = augment_smote_gap_class(
                 X_train,
                 Y_train_with_gap,
@@ -56,10 +53,8 @@ def run_gap_size_experiments():
             )
             classifier_aug = clean_train_classifier(X_aug, Y_aug)
 
-            # Generate results file path
             csv_path = generate_filename_for_gap(method=method, base_dir=base_dir)
 
-            # Log metrics for both classifiers on the same test set
             evaluate_and_log_model(
                 classifier,
                 X_test,
@@ -89,7 +84,6 @@ def run_gap_size_experiments():
 def plot_results():
     combined_df = pd.read_csv(os.path.join(base_dir, "smote_gap_ratio_results.csv"))
 
-    # Filter only class 1 rows for plotting precision/recall/F1
     df = combined_df[
         (combined_df["class"] == 0) & (combined_df["method"].str.startswith("smote"))
     ]
@@ -125,7 +119,6 @@ def plot_results():
             .loc[valid_ratios]
         )
 
-        # Plot precision, recall, f1 for post
         colors = {"precision": "gold", "recall": "crimson", "f1": "dodgerblue"}
         for metric in ["precision", "recall", "f1"]:
             ax.plot(
