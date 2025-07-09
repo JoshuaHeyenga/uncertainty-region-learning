@@ -174,14 +174,12 @@ def plot_performance_accross_ratios(
 
 
 def plot_std_performance(
-    file_path: str, obs_class: int, metric: PerformanceMetric, stage: PerformanceStage
+    file_path: str, obs_class: int, metric: str, stage: str, comp: bool
 ):
     total_df = pd.read_csv(file_path)
 
-    total_df = total_df[total_df["class"] == obs_class]
-    total_df = total_df[total_df["stage"] == stage]
-
-    grouped_df = total_df.groupby(["gap_ratio"])
+    total_df = total_df[(total_df["class"] == obs_class) & (total_df["stage"] == stage)]
+    grouped_df = total_df.groupby(["gap_ratio"])[metric]
     mean = grouped_df.mean()
     std = grouped_df.std()
 
@@ -190,24 +188,48 @@ def plot_std_performance(
 
     ax.plot(
         mean.index,
-        mean,
-        label=f"{stage} {metric}",
+        mean.loc[mean.index],
+        label=f"{stage.capitalize()} {metric.capitalize()}",
         color="blue",  # make this dependent on metric
         marker="o",
     )
 
     ax.fill_between(
         mean.index,
-        mean[metric.value] - std[metric.value],
-        mean[metric.value] + std[metric.value],
+        mean.loc[mean.index] - std.loc[mean.index],
+        mean.loc[mean.index] + std.loc[mean.index],
         color="blue",  # make this dependent on metric
         alpha=0.2,
         label="± 1 Std. Dev.",  # how did i get +-
     )
 
+    if comp:
+        pre_df = pd.read_csv(file_path)
+        pre_df = pre_df[(pre_df["class"] == obs_class) & (pre_df["stage"] == "pre")]
+        pre_grouped_df = pre_df.groupby(["gap_ratio"])[metric]
+        base_mean = pre_grouped_df.mean()
+
+        ax.plot(
+            base_mean.index,
+            base_mean.loc[base_mean.index],
+            label=f"Pre Gap {metric.capitalize()}",
+            color="red",
+            marker="o",
+            linestyle="--",
+        )
+
+        ax.fill_between(
+            base_mean.index,
+            base_mean.loc[base_mean.index] - std.loc[base_mean.index],
+            base_mean.loc[base_mean.index] + std.loc[base_mean.index],
+            color="red",  # make this dependent on metric
+            alpha=0.2,
+            label="± 1 Std. Dev.",  # how did i get +-
+        )
+
     ax.set_xlabel("Gap Ratio")
     ax.set_ylabel(metric)
-    ax.set_title(f"Model — Class {obs_class} {metric} ± STD")
+    ax.set_title(f"Model — Class {obs_class} {metric.capitalize()} ± STD")
     ax.grid(True)
     ax.legend(loc="lower right")
 
