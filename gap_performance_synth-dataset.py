@@ -19,6 +19,7 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
+from visualization import plot_performance_accross_ratios
 
 # === CONFIG ===
 # General Data
@@ -48,7 +49,12 @@ def main() -> None:
     for seed in RANDOM_STATES:
         get_seed_performance(seed=seed)
 
-    plot_results()
+    plot_performance_accross_ratios(
+        file_path="results/synth_dataset/synth_results_smote_07.09_16.46.csv",
+        obs_class=1,
+        n_cols=2,
+        n_rows=2,
+    )
 
 
 # === PERFORMANCE MEASURING ===
@@ -145,108 +151,10 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
     )
 
 
-# === VISUALIZATION ===
-
-
-def plot_results():
-    combined_df = pd.read_csv(
-        "results/synth_dataset/synth_results_smote_07.09_16.46.csv"
-    )
-
-    # Average metrics across seeds
-    metric_columns = ["precision", "recall", "f1", "support", "accuracy"]
-    avg_df = combined_df.groupby(
-        ["method", "stage", "class", "threshold", "gap_ratio"], as_index=False
-    )[metric_columns].mean()
-
-    # Filter for class 0 and smote method
-    df = avg_df[(avg_df["class"] == 0) & (avg_df["method"].str.startswith("smote"))]
-
-    thresholds_with_data = sorted(df["threshold"].dropna().unique())
-    num_plots = len(thresholds_with_data)
-    ncols = 2
-    nrows = (num_plots + ncols - 1) // ncols  # Round up rows as needed
-
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(5 * ncols, 5 * nrows),
-        sharey=True,
-        constrained_layout=True,
-    )
-
-    axes = axes.flatten()
-
-    for ax, threshold in zip(axes, thresholds_with_data):
-        sub_df = df[df["threshold"] == threshold]
-        valid_ratios = sorted(
-            sub_df[sub_df["stage"] == "post"]["gap_ratio"].dropna().unique()
-        )
-
-        if not valid_ratios:
-            print(f"Skipping threshold {threshold} — no valid augmented post data.")
-            ax.axis("off")
-            continue
-
-        pre_df = avg_df[
-            (avg_df["threshold"] == threshold)
-            & (avg_df["class"] == 1)
-            & (avg_df["stage"] == "pre")
-        ]
-        pre = pre_df.groupby("gap_ratio").mean(numeric_only=True).loc[valid_ratios]
-
-        post = (
-            sub_df[sub_df["stage"] == "post"]
-            .groupby("gap_ratio")
-            .mean(numeric_only=True)
-            .loc[valid_ratios]
-        )
-
-        colors = {"precision": "gold", "recall": "crimson", "f1": "dodgerblue"}
-        for metric in ["precision", "recall", "f1"]:
-            ax.plot(
-                valid_ratios,
-                post[metric],
-                marker="o",
-                label=f"Post {metric.capitalize()}",
-                color=colors[metric],
-            )
-            if not pre.empty:
-                ax.axhline(
-                    y=pre[metric].mean(),
-                    linestyle="--",
-                    color=colors[metric],
-                    label=f"Pre {metric.capitalize()}",
-                )
-
-        # Plot accuracy
-        if "accuracy" in post.columns:
-            ax.plot(
-                valid_ratios,
-                post["accuracy"],
-                marker="s",
-                linestyle="-",
-                color="green",
-                label="Post Accuracy",
-            )
-        if "accuracy" in pre.columns:
-            ax.axhline(
-                y=pre["accuracy"].mean(),
-                linestyle="--",
-                color="green",
-                label="Pre Accuracy",
-            )
-
-        ax.set_title(f"Threshold = {threshold}")
-        ax.set_xlabel("Gap Ratio")
-        ax.grid(True)
-        if ax == axes[0]:
-            ax.set_ylabel("Score")
-            ax.legend(loc="lower left")
-
-    plt.suptitle("SMOTE — Class 1 Scores vs Gap Ratio (Averaged)", fontsize=14)
-    plt.show()
-
-
 if __name__ == "__main__":
-    plot_results()
+    plot_performance_accross_ratios(
+        file_path="results/synth_dataset/synth_results_smote_07.09_16.46.csv",
+        obs_class=0,
+        n_cols=2,
+        n_rows=2,
+    )

@@ -1,12 +1,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
+import pandas as pd
 from matplotlib.colors import ListedColormap
 
-with open("config.yaml", "r") as f:
-    config = yaml.safe_load(f)
+from config import CONFIG
 
-GAP_LABEL = config["gap_class_label"]
+# === CONFIG ===
+
+GAP_LABEL = CONFIG["first_gap_class_label"]
+COLORS = {
+    "precision": "gold",
+    "recall": "crimson",
+    "f1": "dodgerblue",
+    "accuracy": "purple",
+}
 
 
 def plot_results_with_decision_boundary(
@@ -80,3 +87,96 @@ def plot_results_with_decision_boundary(
     ax.set_xlabel("Feature 1")
     ax.set_ylabel("Feature 2")
     ax.legend()
+
+
+def plot_performance_accross_ratios(
+    file_path: str, obs_class: int, n_cols: int, n_rows: int
+):
+    total_df = pd.read_csv(file_path)
+
+    # == Data Setup ==
+    # Metrics
+    metrics: str = [
+        "precision",
+        "recall",
+        "f1",
+        "support",
+        "accuracy",
+    ]  # could be even more as the filter is further down
+    mean_df = total_df.groupby(
+        ["method", "stage", "class", "threshold", "gap_ratio"], as_index=False
+    )[metrics].mean()
+
+    try:
+        df = mean_df[
+            (mean_df["class"] == obs_class)
+        ]  # originally there was a smote method filter here
+
+    except Exception as e:
+        print(f"Error in DataFrame filtering: {e}")
+
+    CLEAN_THRESHOLDS = sorted(df["threshold"].dropna().unique())
+
+    # == Plot Settings ==
+    fig, axes = plt.subplots(
+        nrows=n_rows,
+        ncols=n_cols,
+        figsize=(5 * n_cols, 5 * n_rows),
+        sharey=True,
+        constrained_layout=True,
+    )
+
+    axes = axes.flatten()
+
+    for ax, threshold in zip(axes, CLEAN_THRESHOLDS):
+        sub_df = df[df["threshold"] == threshold]
+
+        pre_df = mean_df[
+            (mean_df["threshold"] == threshold)
+            & (mean_df["class"] == obs_class)
+            & (mean_df["stage"] == "pre")
+        ]
+
+        # what does the pre stand for
+        pre_mean_df = pre_df.groupby("gap_ratio").mean(
+            numeric_only=True
+        )  # had a .loc[valid_ratios] before
+
+        post_mean_df = (
+            sub_df[sub_df["stage"] == "post"]
+            .groupby("gap_ratio")
+            .mean(numeric_only=True)
+        )
+
+        # == Graph Visualization ==
+        for metric in ["precision", "recall", "f1", "accuracy"]:
+            ax.plot(
+                post_mean_df.index,  # x-axis: gap_ratio
+                post_mean_df[metric],  # y-axis: the metric values,
+                marker="o",
+                label=f"Post {metric.capitalize()}",
+                color=COLORS[metric],
+            )
+            # there was an if statement here before
+            ax.axhline(
+                y=pre_mean_df[metric].mean(),
+                linestyle="--",
+                color=COLORS[metric],
+                label=f"Pre {metric.capitalize()}",
+            )
+
+            ax.set_title(f"Threshold = {threshold}")
+            ax.set_xlabel("Gap Ratio")
+            ax.grid(True)
+            if ax == axes[0]:
+                ax.set_ylabel("Score")
+                ax.legend(loc="lower left")
+
+        plt.suptitle(
+            f"SMOTE — Class {obs_class} Scores vs Gap Ratio (Averaged)", fontsize=14
+        )
+    plt.show()
+
+
+def plot_performance_accross_thresholds():
+    return
