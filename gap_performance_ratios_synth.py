@@ -6,7 +6,7 @@ import numpy as np
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
-from enums import AugmentationMethod
+from enums import AugmentationMethod, PerformanceMetric, PerformanceStage
 from model import (
     assign_gap_class,
     augment_oversampling_gap_class,
@@ -15,7 +15,7 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_performance_accross_ratios
+from visualization import plot_performance_accross_ratios, plot_std_performance
 
 # === CONFIG ===
 # General Data
@@ -34,6 +34,8 @@ TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
+MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.09_16.46.csv"
+
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
     AugmentationMethod.OVERSAMPLING: augment_oversampling_gap_class,
@@ -46,14 +48,11 @@ def main() -> None:
         get_seed_performance(seed=seed)
 
     plot_performance_accross_ratios(
-        file_path="results/synth_dataset/synth_results_smote_07.09_16.46.csv",
+        file_path=MANUAL_FILE_PATH,
         obs_class=1,
         n_cols=2,
         n_rows=2,
     )
-
-
-# === PERFORMANCE MEASURING ===
 
 
 def get_seed_performance(seed: int) -> None:
@@ -148,9 +147,9 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
 
 
 if __name__ == "__main__":
-    plot_performance_accross_ratios(
-        file_path="results/synth_dataset/synth_results_smote_07.09_16.46.csv",
-        obs_class=0,
-        n_cols=2,
-        n_rows=2,
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric,
+        stage=PerformanceStage,
     )

@@ -4,6 +4,7 @@ import pandas as pd
 from matplotlib.colors import ListedColormap
 
 from config import CONFIG
+from enums import PerformanceMetric, PerformanceStage
 
 # === CONFIG ===
 
@@ -108,9 +109,7 @@ def plot_performance_accross_ratios(
     )[metrics].mean()
 
     try:
-        df = mean_df[
-            (mean_df["class"] == obs_class)
-        ]  # originally there was a smote method filter here
+        df = mean_df[(mean_df["class"] == obs_class)]
 
     except Exception as e:
         print(f"Error in DataFrame filtering: {e}")
@@ -137,10 +136,7 @@ def plot_performance_accross_ratios(
             & (mean_df["stage"] == "pre")
         ]
 
-        # what does the pre stand for
-        pre_mean_df = pre_df.groupby("gap_ratio").mean(
-            numeric_only=True
-        )  # had a .loc[valid_ratios] before
+        pre_mean_df = pre_df.groupby("gap_ratio").mean(numeric_only=True)
 
         post_mean_df = (
             sub_df[sub_df["stage"] == "post"]
@@ -151,13 +147,12 @@ def plot_performance_accross_ratios(
         # == Graph Visualization ==
         for metric in ["precision", "recall", "f1", "accuracy"]:
             ax.plot(
-                post_mean_df.index,  # x-axis: gap_ratio
-                post_mean_df[metric],  # y-axis: the metric values,
+                post_mean_df.index,
+                post_mean_df[metric],
                 marker="o",
                 label=f"Post {metric.capitalize()}",
                 color=COLORS[metric],
             )
-            # there was an if statement here before
             ax.axhline(
                 y=pre_mean_df[metric].mean(),
                 linestyle="--",
@@ -175,6 +170,48 @@ def plot_performance_accross_ratios(
         plt.suptitle(
             f"SMOTE — Class {obs_class} Scores vs Gap Ratio (Averaged)", fontsize=14
         )
+    plt.show()
+
+
+def plot_std_performance(
+    file_path: str, obs_class: int, metric: PerformanceMetric, stage: PerformanceStage
+):
+    total_df = pd.read_csv(file_path)
+
+    total_df = total_df[total_df["class"] == obs_class]
+    total_df = total_df[total_df["stage"] == stage]
+
+    grouped_df = total_df.groupby(["gap_ratio"])
+    mean = grouped_df.mean()
+    std = grouped_df.std()
+
+    # === Plot ===
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    ax.plot(
+        mean.index,
+        mean,
+        label=f"{stage} {metric}",
+        color="blue",  # make this dependent on metric
+        marker="o",
+    )
+
+    ax.fill_between(
+        mean.index,
+        mean[metric.value] - std[metric.value],
+        mean[metric.value] + std[metric.value],
+        color="blue",  # make this dependent on metric
+        alpha=0.2,
+        label="± 1 Std. Dev.",  # how did i get +-
+    )
+
+    ax.set_xlabel("Gap Ratio")
+    ax.set_ylabel(metric)
+    ax.set_title(f"Model — Class {obs_class} {metric} ± STD")
+    ax.grid(True)
+    ax.legend(loc="lower right")
+
+    plt.tight_layout()
     plt.show()
 
 
