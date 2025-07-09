@@ -1,6 +1,6 @@
 import numpy as np
 import yaml
-from imblearn.over_sampling import SMOTE, SVMSMOTE
+from imblearn.over_sampling import ADASYN, SMOTE, SVMSMOTE, BorderlineSMOTE
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -214,6 +214,52 @@ def augment_svm_smote_gap_class(
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
         print(f"SVMSMOTE failed: {e}")
+        return X, Y
+
+    return X_aug, Y_aug
+
+
+def augment_borderline_smote_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
+    if not needs_aug:
+        print("No Borderline-SMOTE needed.")
+        return X, Y
+
+    try:
+        smoter = BorderlineSMOTE(
+            sampling_strategy={target_class: target_count},
+            random_state=config["random_state"],
+        )
+        X_aug, Y_aug = smoter.fit_resample(X, Y)
+    except ValueError as e:
+        print(f"BorderlineSMOTE failed: {e}")
+        return X, Y
+
+    return X_aug, Y_aug
+
+
+def augment_adasyn_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
+    if not needs_aug:
+        print("No ADASYN needed.")
+        return X, Y
+
+    try:
+        adasyn = ADASYN(
+            sampling_strategy={target_class: target_count},
+            random_state=config["random_state"],
+        )
+        X_aug, Y_aug = adasyn.fit_resample(X, Y)
+    except ValueError as e:
+        print(f"ADASYN failed: {e}")
         return X, Y
 
     return X_aug, Y_aug

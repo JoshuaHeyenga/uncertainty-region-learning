@@ -23,7 +23,7 @@ from visualization import plot_results_with_decision_boundary
 # === Configuration and Constants ===
 UNCERTAINTY_THRESHOLD: float = CONFIG["uncertainty_threshold"]
 RANDOM_STATE: int = CONFIG["random_state"]
-GAP_RATIO: float = CONFIG["gap_ratio"]
+# GAP_RATIO: float = CONFIG["gap_ratio"]
 GAP_CLASS_LABEL: int = CONFIG["gap_class_label"]
 METHOD: AugmentationMethod = AugmentationMethod.SMOTE
 CSV_PATH: str = generate_filename(METHOD, UNCERTAINTY_THRESHOLD, base_dir="results")
@@ -35,7 +35,10 @@ augmentation_dispatch = {
 }
 
 thresholds = [0.3, 0.35, 0.4, 0.45]
-gap_ratios = np.arange(0.3, 1.6, 0.1)
+regular_ratios = np.arange(0.3, 1.6, 0.1)
+extra_ratios = np.array([0.01, 0.1, 2.5, 10.0])
+
+gap_ratios = np.sort(np.unique(np.concatenate((regular_ratios, extra_ratios))))
 
 
 def main() -> None:
