@@ -3,7 +3,6 @@ import yaml
 from imblearn.over_sampling import ADASYN, SMOTE, SVMSMOTE, BorderlineSMOTE
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
     precision_recall_fscore_support,
 )
 from sklearn.neural_network import MLPClassifier

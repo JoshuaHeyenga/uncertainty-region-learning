@@ -2,15 +2,11 @@ import os
 from datetime import datetime
 from typing import Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from sklearn.metrics import accuracy_score
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
 from enums import AugmentationMethod
-from logger import generate_filename, generate_filename_for_gap
 from model import (
     assign_gap_class,
     augment_oversampling_gap_class,
