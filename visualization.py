@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 from matplotlib.colors import ListedColormap
 
 from config import CONFIG
-from enums import PerformanceMetric, PerformanceStage
 
 # === CONFIG ===
 
@@ -166,10 +166,6 @@ def plot_performance_accross_ratios(
             if ax == axes[0]:
                 ax.set_ylabel("Score")
                 ax.legend(loc="lower left")
-
-        plt.suptitle(
-            f"SMOTE — Class {obs_class} Scores vs Gap Ratio (Averaged)", fontsize=14
-        )
     plt.show()
 
 
@@ -184,7 +180,7 @@ def plot_std_performance(
     std = grouped_df.std()
 
     # === Plot ===
-    fig, ax = plt.subplots(figsize=(7, 5))
+    fig, ax = plt.subplots(figsize=(7, 4))
 
     ax.plot(
         mean.index,
@@ -200,7 +196,7 @@ def plot_std_performance(
         mean.loc[mean.index] + std.loc[mean.index],
         color="blue",  # make this dependent on metric
         alpha=0.2,
-        label="± 1 Std. Dev.",  # how did i get +-
+        label="± 1 Std. Dev.",
     )
 
     if comp:
@@ -212,7 +208,7 @@ def plot_std_performance(
         ax.plot(
             base_mean.index,
             base_mean.loc[base_mean.index],
-            label=f"Pre Gap {metric.capitalize()}",
+            label=f"Pre {metric.capitalize()}",
             color="red",
             marker="o",
             linestyle="--",
@@ -227,11 +223,13 @@ def plot_std_performance(
             label="± 1 Std. Dev.",  # how did i get +-
         )
 
-    ax.set_xlabel("Gap Ratio")
-    ax.set_ylabel(metric)
-    ax.set_title(f"Model — Class {obs_class} {metric.capitalize()} ± STD")
+    ax.set_xlabel("Gap Ratio", fontsize=16)
+    ax.set_ylabel(metric.capitalize(), fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.tick_params(axis="both", labelsize=14)
     ax.grid(True)
-    ax.legend(loc="lower right")
+    if obs_class == 0 and metric == "accuracy":
+        ax.legend(loc="lower right", fontsize=14)
 
     plt.tight_layout()
     plt.show()

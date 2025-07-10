@@ -14,7 +14,7 @@ with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 
-def clean_train_classifier(X_train, Y_train):
+def clean_train_classifier(X_train, Y_train, seed):
     """
     Trains a multi-layer perceptron (MLP) classifier on the given training data.
 
@@ -31,7 +31,7 @@ def clean_train_classifier(X_train, Y_train):
         activation="relu",  # tanh, logistic, relu
         solver="adam",
         max_iter=2000,
-        random_state=config["random_state"],
+        random_state=seed,
     )
     classifier.fit(X_train, Y_train)
     return classifier

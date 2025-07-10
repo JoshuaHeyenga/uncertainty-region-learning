@@ -48,7 +48,7 @@ def main() -> None:
         get_seed_performance(seed=seed)
 
     plot_performance_accross_ratios(
-        file_path=MANUAL_FILE_PATH,
+        file_path=FILE_PATH,
         obs_class=1,
         n_cols=2,
         n_rows=2,
@@ -71,7 +71,7 @@ def get_seed_performance(seed: int) -> None:
 
             # == Get Base Performance ==
             X_train, X_test, y_train, y_test = prepare_data()
-            classifier = clean_train_classifier(X_train, y_train)
+            classifier = clean_train_classifier(X_train, y_train, seed)
 
             evaluate_and_log_model(
                 classifier=classifier,
@@ -94,7 +94,7 @@ def get_seed_performance(seed: int) -> None:
             )
 
             X_aug, y_aug = augment_data(X_train, y_train_gap, gap_ratio)
-            classifier_aug = clean_train_classifier(X_aug, y_aug)
+            classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
             evaluate_and_log_model(
                 classifier=classifier_aug,
@@ -147,30 +147,4 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
 
 
 if __name__ == "__main__":
-    plot_performance_accross_ratios(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=1,
-        n_cols=2,
-        n_rows=2,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=1,
-        metric=PerformanceMetric.ACCURACY.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=1,
-        metric=PerformanceMetric.PRECISION.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=1,
-        metric=PerformanceMetric.RECALL.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
+    main()
