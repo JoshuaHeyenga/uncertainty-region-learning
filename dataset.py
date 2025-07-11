@@ -4,11 +4,13 @@ from sklearn.datasets import make_blobs, make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+from enums import Dataset
+
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 
-def generate_dataset():
+def generate_dataset(mode: Dataset) -> tuple:
     """
     Generates a synthetic dataset using Gaussian blobs.
 
@@ -20,9 +22,7 @@ def generate_dataset():
         Y (ndarray): Corresponding label vector of shape (n_samples,).
     """
 
-    mode = "wine"  # Options: "make_blobs", "make_classification", "iris"
-
-    if mode == "make_blobs":
+    if mode == Dataset.BLOBS:
         X, Y = make_blobs(
             n_samples=config["n_samples"],
             centers=config["centers"],
@@ -31,21 +31,16 @@ def generate_dataset():
         )
         return X, Y
 
-    if mode == "make_classification":
-        X, Y = make_classification(
-            n_samples=config["n_samples"],
-            n_features=2,
-            n_informative=2,
-            n_redundant=0,
-            n_clusters_per_class=1,
-            class_sep=0.8,  # < 1 = more overlap
-            flip_y=0.01,  # 1% label noise
-            weights=[0.6, 0.4],  # optional imbalance
+    if mode == Dataset.MULTI_BLOBS:
+        X, Y = make_blobs(
+            n_samples=2000,
+            centers=4,
+            cluster_std=5,
             random_state=config["random_state"],
         )
         return X, Y
 
-    if mode == "iris":
+    if mode == Dataset.IRIS:
         df = pd.read_csv("data/Iris.csv")
 
         # Drop Id column if exists
@@ -62,7 +57,7 @@ def generate_dataset():
 
         return X, Y
 
-    if mode == "wine":
+    if mode == Dataset.WINE:
         df = pd.read_csv("data/WineQT.csv")
 
         # Drop any missing values just in case

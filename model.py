@@ -1,7 +1,10 @@
 import numpy as np
 import yaml
-from imblearn.over_sampling import SMOTE, SVMSMOTE
-from sklearn.metrics import classification_report, precision_recall_fscore_support
+from imblearn.over_sampling import ADASYN, SMOTE, SVMSMOTE, BorderlineSMOTE
+from sklearn.metrics import (
+    accuracy_score,
+    precision_recall_fscore_support,
+)
 from sklearn.neural_network import MLPClassifier
 from sklearn.utils import resample
 
@@ -11,7 +14,7 @@ with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 
-def clean_train_classifier(X_train, Y_train):
+def clean_train_classifier(X_train, Y_train, seed):
     """
     Trains a multi-layer perceptron (MLP) classifier on the given training data.
 
@@ -27,8 +30,8 @@ def clean_train_classifier(X_train, Y_train):
         hidden_layer_sizes=(50,),
         activation="relu",  # tanh, logistic, relu
         solver="adam",
-        max_iter=10000,
-        random_state=42,
+        max_iter=2000,
+        random_state=seed,
     )
     classifier.fit(X_train, Y_train)
     return classifier
@@ -37,22 +40,16 @@ def clean_train_classifier(X_train, Y_train):
 def evaluate_and_log_model(
     classifier, X_test, Y_test, file_path, method, stage, seed, threshold, gap_ratio
 ):
-    Y_pred = classifier.predict(X_test)
+    y_pred = classifier.predict(X_test)
+    acc = accuracy_score(Y_test, y_pred)
 
-    class_labels = sorted(list(set(np.unique(Y_test)) & set(np.unique(Y_pred))))
-    class_labels = [
-        label for label in class_labels if label != config["gap_class_label"]
-    ]
-
-    if not class_labels:
-        print("No valid base classes to evaluate.")
-        return
-
-    precision_arr, recall_arr, f1_arr, support_arr = precision_recall_fscore_support(
-        Y_test, Y_pred, labels=class_labels, zero_division=0
+    precision, recall, f1, support = precision_recall_fscore_support(
+        Y_test, y_pred, labels=np.unique(Y_test), zero_division=0
     )
 
-    for i, class_label in enumerate(class_labels):
+    for class_label, p, r, f, s in zip(
+        np.unique(Y_test), precision, recall, f1, support
+    ):
         log_metrics_to_csv(
             file_path=file_path,
             method=method,
@@ -60,15 +57,18 @@ def evaluate_and_log_model(
             seed=seed,
             class_label=class_label,
             threshold=threshold,
-            precision=precision_arr[i],
-            recall=recall_arr[i],
-            f1=f1_arr[i],
-            support=support_arr[i],
             gap_ratio=gap_ratio,
+            precision=p,
+            recall=r,
+            f1=f,
+            support=s,
+            accuracy=acc,  # ✅ Accuracy is passed here
         )
 
 
-def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]):
+def assign_gap_class(
+    classifier, X, Y, threshold=config["uncertainty_threshold"], class_count: int = 2
+):
     """
     Assigns class label 2 (gap class) to data points with low classification confidence.
 
@@ -89,14 +89,20 @@ def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]
     if threshold is None:
         threshold = threshold
 
-    proba = classifier.predict_proba(X)
-    confidence = np.max(proba, axis=1)
+    if class_count <= 2:
+        proba = classifier.predict_proba(X)
+        confidence = np.max(proba, axis=1)
 
-    uncertain_mask = confidence < (1 - threshold)
+        uncertain_mask = confidence < (1 - threshold)
 
-    Y_extended = np.copy(Y)
-    Y_extended[uncertain_mask] = config["gap_class_label"]
-    return Y_extended, uncertain_mask
+        Y_extended = np.copy(Y)
+        Y_extended[uncertain_mask] = config["gap_class_label"]
+        return Y_extended, uncertain_mask
+    elif class_count >= 3:
+        # Split dataset seperately for each class
+        # detect uncertainty samples
+        # return tuple of sub gap classes
+        return
 
 
 def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"]):
@@ -132,7 +138,7 @@ def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"])
         Y_target,
         replace=True,
         n_samples=n_to_generate,
-        random_state=42,
+        random_state=config["random_state"],
     )
 
     # Concatenate original and new samples
@@ -180,7 +186,10 @@ def augment_smote_gap_class(
     else:
         print(f"Augmenting gap class {target_class} to target count: {target_count}")
 
-    smoter = SMOTE(sampling_strategy={target_class: target_count}, random_state=42)
+    smoter = SMOTE(
+        sampling_strategy={target_class: target_count},
+        random_state=config["random_state"],
+    )
     X_aug, Y_aug = smoter.fit_resample(X, Y)
 
     return X_aug, Y_aug
@@ -216,11 +225,57 @@ def augment_svm_smote_gap_class(
     try:
         smoter = SVMSMOTE(
             sampling_strategy={target_class: target_count},
-            random_state=42,
+            random_state=config["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
         print(f"SVMSMOTE failed: {e}")
+        return X, Y
+
+    return X_aug, Y_aug
+
+
+def augment_borderline_smote_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
+    if not needs_aug:
+        print("No Borderline-SMOTE needed.")
+        return X, Y
+
+    try:
+        smoter = BorderlineSMOTE(
+            sampling_strategy={target_class: target_count},
+            random_state=config["random_state"],
+        )
+        X_aug, Y_aug = smoter.fit_resample(X, Y)
+    except ValueError as e:
+        print(f"BorderlineSMOTE failed: {e}")
+        return X, Y
+
+    return X_aug, Y_aug
+
+
+def augment_adasyn_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
+    needs_aug, target_count = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
+    if not needs_aug:
+        print("No ADASYN needed.")
+        return X, Y
+
+    try:
+        adasyn = ADASYN(
+            sampling_strategy={target_class: target_count},
+            random_state=config["random_state"],
+        )
+        X_aug, Y_aug = adasyn.fit_resample(X, Y)
+    except ValueError as e:
+        print(f"ADASYN failed: {e}")
         return X, Y
 
     return X_aug, Y_aug

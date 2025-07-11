@@ -1,26 +1,14 @@
-n_samples: 500
+n_samples: 1000
 centers: 2
-cluster_std: 5 # was 3.5
+cluster_std: 5 
 random_state: 42
 
 gap_class_label: 99
 
-gap_ratio: 0.9
-uncertainty_threshold: 0.3 #0.2 worked best -> check ob 0.1 oder 0.11 schritte
-# Grafik mit Kurve wie sich modell verändert bei ändern des thresholds
-# mehrere seeds verwenden (3-5) zum durchprobieren (min linie, standard deviation als range)
-# Design entscheidungen erklären 
-# zweiten schweren datensatz hinzufügen
-# erstmal false labeling rauslassen
+gap_ratio: 0.8
+uncertainty_threshold: 0.3
 
-# checken ob es sinnvol ist einen cap auf die datengenerierung zu tun 
-
-# precision vorher und nachher mit anderen farben
-# allgemein farben verwenden; default gestrichelt -> punkte einheitlich
-# Bis nächste Woche:
-  # Erster Abschnitt überarbeiten -> Philipp geben 
-  # Code finalisieren für künstliches Datenset
-  # Plots fertig machen
-
-
-  # Auch verschiedene mengen an punkten generieren lassen und schauen wie das verglichen aussieht
+random_states: [42,44,46,48,50]
+first_gap_class_label: 99
+synth_thresholds: [0.3, 0.35, 0.4, 0.45]
+gap_ratios: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]
