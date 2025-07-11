@@ -66,7 +66,9 @@ def evaluate_and_log_model(
         )
 
 
-def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]):
+def assign_gap_class(
+    classifier, X, Y, threshold=config["uncertainty_threshold"], class_count: int = 2
+):
     """
     Assigns class label 2 (gap class) to data points with low classification confidence.
 
@@ -87,14 +89,20 @@ def assign_gap_class(classifier, X, Y, threshold=config["uncertainty_threshold"]
     if threshold is None:
         threshold = threshold
 
-    proba = classifier.predict_proba(X)
-    confidence = np.max(proba, axis=1)
+    if class_count <= 2:
+        proba = classifier.predict_proba(X)
+        confidence = np.max(proba, axis=1)
 
-    uncertain_mask = confidence < (1 - threshold)
+        uncertain_mask = confidence < (1 - threshold)
 
-    Y_extended = np.copy(Y)
-    Y_extended[uncertain_mask] = config["gap_class_label"]
-    return Y_extended, uncertain_mask
+        Y_extended = np.copy(Y)
+        Y_extended[uncertain_mask] = config["gap_class_label"]
+        return Y_extended, uncertain_mask
+    elif class_count >= 3:
+        # Split dataset seperately for each class
+        # detect uncertainty samples
+        # return tuple of sub gap classes
+        return
 
 
 def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"]):

@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
-from enums import AugmentationMethod
+from enums import AugmentationMethod, Dataset
 from logger import generate_filename
 from model import (
     assign_gap_class,
@@ -47,7 +47,7 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
     X_train, X_test, y_train, y_test = prepare_data()
-    classifier = clean_train_classifier(X_train, y_train)
+    classifier = clean_train_classifier(X_train, y_train, CONFIG["random_state"])
     evaluate_and_visualize_baseline(
         classifier, X_test, y_test, X_train, y_train, axes[0]
     )
@@ -55,7 +55,7 @@ def main() -> None:
     y_train_with_gap = assign_and_log_gap_class(classifier, X_train, y_train)
     X_aug, y_aug = augment_data(X_train, y_train_with_gap)
 
-    classifier_aug = clean_train_classifier(X_aug, y_aug)
+    classifier_aug = clean_train_classifier(X_aug, y_aug, CONFIG["random_state"])
     evaluate_and_visualize_augmented(
         classifier_aug, X_test, y_test, X_aug, y_aug, axes[1]
     )
@@ -74,7 +74,7 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset()
+    X, y = generate_dataset(Dataset.MULTI_BLOBS)
     return split_dataset(X, y)
 
 
@@ -131,7 +131,7 @@ def assign_and_log_gap_class(classifier, X_train, y_train) -> np.ndarray:
     """
 
     y_train_with_gap, _ = assign_gap_class(
-        classifier, X_train, y_train, threshold=UNCERTAINTY_THRESHOLD
+        classifier, X_train, y_train, threshold=UNCERTAINTY_THRESHOLD, class_count=2
     )
 
     print(f"Labels present after gap assignment: {np.unique(y_train_with_gap)}")

@@ -6,7 +6,7 @@ import numpy as np
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
-from enums import AugmentationMethod, PerformanceMetric, PerformanceStage
+from enums import AugmentationMethod, Dataset, PerformanceMetric, PerformanceStage
 from model import (
     assign_gap_class,
     augment_oversampling_gap_class,
@@ -34,7 +34,7 @@ TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
-MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.09_16.46.csv"
+MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.10_16.20.csv"
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -118,7 +118,7 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset()
+    X, y = generate_dataset(mode=Dataset.MULTI_BLOBS)
     return split_dataset(X, y)
 
 
@@ -147,4 +147,73 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
 
 
 if __name__ == "__main__":
-    main()
+    plot_performance_accross_ratios(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        n_cols=2,
+        n_rows=2,
+    )
+
+    # F1 Score
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.F1SCORE.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.F1SCORE.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+
+    # Recall
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.RECALL.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.RECALL.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+
+    # Accuracy
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.ACCURACY.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.ACCURACY.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+
+    # Precision
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.PRECISION.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.PRECISION.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
+    )

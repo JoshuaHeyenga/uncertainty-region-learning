@@ -25,3 +25,15 @@ class PerformanceMetric(Enum):
 class PerformanceStage(Enum):
     PRE = "pre"
     POST = "post"
+
+
+class Dataset(Enum):
+    """
+    Enum for different datasets used in the experiments.
+    """
+
+    BLOBS = "blobs"
+    MULTI_BLOBS = "multi_blobs"
+    IRIS = "iris"
+    WINE = "wine"
+    CANCER = "cancer"
