@@ -8,6 +8,7 @@ from sklearn.metrics import (
 from sklearn.neural_network import MLPClassifier
 from sklearn.utils import resample
 
+from config import CONFIG
 from logger import log_metrics_to_csv
 
 with open("config.yaml", "r") as f:
@@ -89,20 +90,37 @@ def assign_gap_class(
     if threshold is None:
         threshold = threshold
 
+    Y_extended = np.copy(Y)
+
     if class_count <= 2:
         proba = classifier.predict_proba(X)
         confidence = np.max(proba, axis=1)
 
         uncertain_mask = confidence < (1 - threshold)
-
-        Y_extended = np.copy(Y)
         Y_extended[uncertain_mask] = config["gap_class_label"]
+
         return Y_extended, uncertain_mask
-    elif class_count >= 3:
-        # Split dataset seperately for each class
-        # detect uncertainty samples
-        # return tuple of sub gap classes
-        return
+    else:
+        gap_class_label = CONFIG["first_gap_class_label"]
+        partial_gap_masks = {}
+        proba_all = classifier.predict_proba(X)
+
+        for cls in range(class_count):
+            proba_cls = proba_all[:, cls]
+            proba_not_cls = np.sum(np.delete(proba_all, cls, axis=1), axis=1)
+
+            # Consider samples where the true label is cls
+            belongs_to_class = Y == cls
+
+            # Low confidence that it's either cls or not-cls
+            confidence = np.maximum(proba_cls, proba_not_cls)
+            uncertain_mask = (confidence < (1 - threshold)) & belongs_to_class
+
+            partial_gap_masks[cls] = uncertain_mask
+            Y_extended[uncertain_mask] = gap_class_label
+            gap_class_label += 1
+
+        return Y_extended, partial_gap_masks
 
 
 def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"]):

@@ -6,7 +6,7 @@ random_state: 42
 gap_class_label: 99
 
 gap_ratio: 0.8
-uncertainty_threshold: 0.3
+uncertainty_threshold: 0.45
 
 random_states: [42,44,46,48,50]
 first_gap_class_label: 99

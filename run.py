@@ -25,6 +25,7 @@ GAP_RATIO: float = CONFIG["gap_ratio"]
 GAP_CLASS_LABEL: int = CONFIG["gap_class_label"]
 METHOD: AugmentationMethod = AugmentationMethod.SMOTE
 CSV_PATH: str = generate_filename(METHOD, UNCERTAINTY_THRESHOLD, base_dir="results")
+NUMBER_OF_CLASSES: int = 4
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -54,6 +55,7 @@ def main() -> None:
 
     y_train_with_gap = assign_and_log_gap_class(classifier, X_train, y_train)
     X_aug, y_aug = augment_data(X_train, y_train_with_gap)
+    # y_aug = np.where(y_aug >= CONFIG["first_gap_class_label"], GAP_CLASS_LABEL, y_aug)
 
     classifier_aug = clean_train_classifier(X_aug, y_aug, CONFIG["random_state"])
     evaluate_and_visualize_augmented(
@@ -75,6 +77,8 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
 
     X, y = generate_dataset(Dataset.MULTI_BLOBS)
+    NUMBER_OF_CLASSES = len(np.unique(y))
+    print(f"Number of classes in dataset: {NUMBER_OF_CLASSES}")
     return split_dataset(X, y)
 
 
@@ -130,13 +134,21 @@ def assign_and_log_gap_class(classifier, X_train, y_train) -> np.ndarray:
         Modified training labels with low-confidence points relabeled as gap class.
     """
 
-    y_train_with_gap, _ = assign_gap_class(
-        classifier, X_train, y_train, threshold=UNCERTAINTY_THRESHOLD, class_count=2
+    y_train_with_gap, partial_gap_masks = assign_gap_class(
+        classifier,
+        X_train,
+        y_train,
+        threshold=UNCERTAINTY_THRESHOLD,
+        class_count=NUMBER_OF_CLASSES,
     )
 
-    print(f"Labels present after gap assignment: {np.unique(y_train_with_gap)}")
-    for label, count in zip(*np.unique(y_train_with_gap, return_counts=True)):
-        print(f"Class {label}: {count} samples")
+    gap_label = CONFIG["first_gap_class_label"]
+    gap_indices = y_train_with_gap == gap_label
+    original_labels_of_gap_samples = y_train[gap_indices]
+
+    print(
+        f"Original labels of gap samples: {np.unique(original_labels_of_gap_samples)}"
+    )
 
     return y_train_with_gap
 
@@ -157,12 +169,34 @@ def augment_data(X_train, y_train_with_gap) -> Tuple[np.ndarray, np.ndarray]:
     if not augment_fn:
         raise ValueError(f"Unsupported augmentation method: {METHOD}")
 
-    return augment_fn(
-        X_train,
-        y_train_with_gap,
-        target_class=GAP_CLASS_LABEL,
-        gap_ratio=GAP_RATIO,
-    )
+    if NUMBER_OF_CLASSES <= 2:
+        return augment_fn(
+            X_train,
+            y_train_with_gap,
+            target_class=GAP_CLASS_LABEL,
+            gap_ratio=GAP_RATIO,
+        )
+    else:
+        first_gap_class_label = CONFIG["first_gap_class_label"]
+
+        X_aug_total = [X_train]
+        y_aug_total = [y_train_with_gap]
+
+        for i in range(NUMBER_OF_CLASSES):
+            gap_label = first_gap_class_label + i
+            if gap_label not in y_train_with_gap:
+                continue  # Skip if this gap label wasn't actually used
+
+            X_gap, y_gap = augment_fn(
+                X_train,
+                y_train_with_gap,
+                target_class=gap_label,
+                gap_ratio=GAP_RATIO,
+            )
+            X_aug_total.append(X_gap)
+            y_aug_total.append(y_gap)
+
+        return np.vstack(X_aug_total), np.hstack(y_aug_total)
 
 
 def evaluate_and_visualize_augmented(
