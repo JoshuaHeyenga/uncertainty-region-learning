@@ -264,17 +264,9 @@ def augment_smote_gap_class(
         get_gap_class_target_count(Y, target_class, ratio=gap_ratio)
     )
 
-    print(f"--- SMOTE Decision Log ---")
-    print(f"Target gap class label: {target_class}")
-    print(f"Top two base classes: {top_two_labels} with sizes {avg_top_two}")
-    print(f"Current gap class size: {current_gap_size}")
-    print(f"Target count (gap_ratio={gap_ratio}): {target_count}")
-    print(f"Needs augmentation: {needs_aug}")
-    print(f"---------------------------")
-
     if not needs_aug:
         print("No SMOTE needed.")
-        return X, Y
+        return X, Y, False
     else:
         print(f"Augmenting gap class {target_class} to target count: {target_count}")
 
@@ -284,7 +276,7 @@ def augment_smote_gap_class(
     )
     X_aug, Y_aug = smoter.fit_resample(X, Y)
 
-    return X_aug, Y_aug
+    return X_aug, Y_aug, True
 
 
 def augment_svm_smote_gap_class(

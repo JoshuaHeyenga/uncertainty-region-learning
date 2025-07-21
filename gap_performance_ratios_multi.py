@@ -35,6 +35,8 @@ TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
+PRE_CLASSIFIER = None
+
 MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.11_15.46.csv"
 
 augmentation_dispatch = {
@@ -74,6 +76,9 @@ def get_seed_performance(seed: int) -> None:
             X_train, X_test, y_train, y_test = prepare_data()
             classifier = clean_train_classifier(X_train, y_train, seed)
 
+            global PRE_CLASSIFIER
+            PRE_CLASSIFIER = classifier
+
             evaluate_and_log_model(
                 classifier=classifier,
                 X_test=X_test,
@@ -84,7 +89,10 @@ def get_seed_performance(seed: int) -> None:
                 seed=seed,
                 threshold=threshold,
                 gap_ratio=gap_ratio,
+                pre_classifier=None,
             )
+
+            original_y_train = y_train.copy()
 
             # == Get Gap-Class Performance ==
             y_train_gap, _ = assign_gap_class(
@@ -95,10 +103,17 @@ def get_seed_performance(seed: int) -> None:
                 class_count=NUMBER_OF_CLASSES,
             )
 
-            X_aug, y_aug = augment_data(X_train, y_train_gap, gap_ratio)
+            X_aug, y_aug, was_augmented = augment_data(X_train, y_train_gap, gap_ratio)
+
+            if not was_augmented:
+                print("Skipping retraining and logging — no augmentation needed.")
+                continue
+
             y_aug = np.where(
                 y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
             )
+            y_aug[: len(y_train)] = original_y_train
+
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
             evaluate_and_log_model(
@@ -111,6 +126,7 @@ def get_seed_performance(seed: int) -> None:
                 seed=seed,
                 threshold=threshold,
                 gap_ratio=gap_ratio,
+                pre_classifier=PRE_CLASSIFIER,
             )
 
 
@@ -129,51 +145,44 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     return split_dataset(X, y)
 
 
-def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Applies the selected augmentation method to the gap class to balance it.
-
-    Args:
-        X_train: Training features.
-        y_train_with_gap: Training labels including gap class.
-
-    Returns:
-        Tuple of (X_aug, y_aug): Augmented feature and label arrays.
-    """
-
+def augment_data(
+    X_train, y_train_with_gap, gap_ratio
+) -> Tuple[np.ndarray, np.ndarray, bool]:
     augment_fn = augmentation_dispatch.get(METHOD)
     if not augment_fn:
         raise ValueError(f"Unsupported augmentation method: {METHOD}")
 
     if NUMBER_OF_CLASSES <= 2:
-        return augment_fn(
+        X_aug, y_aug, was_augmented = augment_fn(
             X_train,
             y_train_with_gap,
             target_class=FIRST_GAP_CLASS_LABEL,
             gap_ratio=gap_ratio,
         )
+        return X_aug, y_aug, was_augmented
     else:
-        first_gap_class_label = CONFIG["first_gap_class_label"]
-
         X_aug_total = [X_train]
         y_aug_total = [y_train_with_gap]
+        augmented = False
 
         for i in range(NUMBER_OF_CLASSES):
-            gap_label = first_gap_class_label + i
+            gap_label = FIRST_GAP_CLASS_LABEL + i
             if gap_label not in y_train_with_gap:
-                continue  # Skip if this gap label wasn't actually used
+                continue
 
-            X_gap, y_gap = augment_fn(
+            X_gap, y_gap, was_aug = augment_fn(
                 X_train,
                 y_train_with_gap,
                 target_class=gap_label,
                 gap_ratio=gap_ratio,
             )
-            X_aug_total.append(X_gap)
-            y_aug_total.append(y_gap)
+            if was_aug:
+                augmented = True
+                X_aug_total.append(X_gap)
+                y_aug_total.append(y_gap)
 
-        return np.vstack(X_aug_total), np.hstack(y_aug_total)
+        return np.vstack(X_aug_total), np.hstack(y_aug_total), augmented
 
 
 if __name__ == "__main__":
-    plot_performance_accross_ratios(MANUAL_FILE_PATH, obs_class=1, n_cols=2, n_rows=2)
+    main()

@@ -69,7 +69,7 @@ def main() -> None:
     )
 
     y_train_with_gap = assign_and_log_gap_class(classifier, X_train, y_train)
-    X_aug, y_aug = augment_data(X_train, y_train_with_gap)
+    X_aug, y_aug, _ = augment_data(X_train, y_train_with_gap)
     # y_aug = np.where(y_aug >= CONFIG["first_gap_class_label"], GAP_CLASS_LABEL, y_aug)
 
     classifier_aug = clean_train_classifier(X_aug, y_aug, CONFIG["random_state"])

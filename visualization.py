@@ -363,3 +363,39 @@ def plot_gcg(file_path: str, augment_method: str):
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_gcg_across_ratios(file_path: str, augment_method: str):
+    total_df = pd.read_csv(file_path)
+
+    gcg_df = total_df[
+        (total_df["method"] == augment_method) & (total_df["stage"] == "post")
+    ]
+
+    grouped = (
+        gcg_df.groupby("gap_ratio")["gcg"].mean().reset_index().sort_values("gap_ratio")
+    )
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(
+        grouped["gap_ratio"],
+        grouped["gcg"],
+        marker="o",
+        color="darkgreen",
+        label="Avg GCG Score",
+    )
+
+    ax.set_xlabel("Gap Ratio", fontsize=16)
+    ax.set_ylabel("GCG", fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.grid(True)
+    ax.legend(
+        loc="lower right",
+        fontsize=13,
+        title_fontsize=14,
+    )
+    ax.tick_params(axis="both", labelsize=13)
+
+    plt.tight_layout()
+    plt.show()

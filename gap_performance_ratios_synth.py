@@ -16,7 +16,11 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_performance_accross_ratios, plot_std_performance
+from visualization import (
+    plot_gcg_across_ratios,
+    plot_performance_accross_ratios,
+    plot_std_performance,
+)
 
 # === CONFIG ===
 # General Data
@@ -35,7 +39,7 @@ TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
-MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.10_16.20.csv"
+MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.21_14.11.csv"
 
 PRE_CLASSIFIER = None
 
@@ -74,15 +78,7 @@ def get_seed_performance(seed: int) -> None:
 
             # == Get Base Performance ==
             X_train, X_test, y_train, y_test = prepare_data()
-            print("--- SPLIT INFO ---")
-            print("X_train shape:", X_train.shape)
-            print("X_test shape:", X_test.shape)
-            print("y_train counts:", np.bincount(y_train))
-            print("y_test counts:", np.bincount(y_test))
-            print("Checksum (X_train[:10]):", hash(X_train[:10].tobytes()))
-            print("Checksum (y_train[:10]):", hash(y_train[:10].tobytes()))
-            print("------------------")
-            # checken das die daten die gleichen sind
+
             classifier = clean_train_classifier(X_train, y_train, seed)
 
             y_pred = classifier.predict(X_test)
@@ -105,6 +101,9 @@ def get_seed_performance(seed: int) -> None:
                 pre_classifier=None,
             )
 
+            # Save original labels
+            original_y_train = y_train.copy()
+
             # == Get Gap-Class Performance ==
             y_train_gap, _ = assign_gap_class(
                 classifier=classifier,
@@ -113,16 +112,15 @@ def get_seed_performance(seed: int) -> None:
                 threshold=threshold,
             )
 
-            X_aug, y_aug = augment_data(X_train, y_train_gap, gap_ratio)
-            classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
+            X_aug, y_aug, was_augmented = augment_data(X_train, y_train_gap, gap_ratio)
 
-            print("== FINAL EVAL DEBUG ==")
-            print("y_test[:10]:", y_test[:10])
-            print("predicted:", classifier_aug.predict(X_test[:10]))
-            print(
-                "Accuracy (should match printed value):",
-                accuracy_score(y_test, classifier_aug.predict(X_test)),
-            )
+            if not was_augmented:
+                print("Skipping retraining and logging — no augmentation needed.")
+                continue
+
+            y_aug[: len(y_train)] = original_y_train  # needs further testing
+
+            classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
             evaluate_and_log_model(
                 classifier=classifier_aug,
@@ -136,9 +134,6 @@ def get_seed_performance(seed: int) -> None:
                 gap_ratio=gap_ratio,
                 pre_classifier=PRE_CLASSIFIER,
             )
-            evaluate_on_original_training_data(
-                classifier_aug, X_test, y_test, X_aug, y_aug
-            )
 
 
 def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -151,23 +146,12 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
 
     X, y = generate_dataset(mode=Dataset.BLOBS)
-
-    print("=== DATASET INFO ===")
-    print("X shape:", X.shape)
-    print("Y shape:", y.shape)
-    print("Label counts:", np.bincount(y))
-    print("X mean (per dim):", np.mean(X, axis=0))
-    print("X std (per dim):", np.std(X, axis=0))
-    print("First 5 samples (X):", X[:5])
-    print("First 5 labels (Y):", y[:5])
-    print("Checksum (X):", hash(X[:10].tobytes()))
-    print("Checksum (Y):", hash(y[:10].tobytes()))
-    print("=====================")
-
     return split_dataset(X, y)
 
 
-def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.ndarray]:
+def augment_data(
+    X_train, y_train_with_gap, gap_ratio
+) -> Tuple[np.ndarray, np.ndarray, bool]:
     """
     Applies the selected augmentation method to the gap class to balance it.
 
@@ -183,12 +167,14 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
     if not augment_fn:
         raise ValueError(f"Unsupported augmentation method: {METHOD}")
 
-    return augment_fn(
+    X_aug, y_aug, was_augmented = augment_fn(
         X_train,
         y_train_with_gap,
         target_class=FIRST_GAP_CLASS_LABEL,
         gap_ratio=gap_ratio,
     )
+
+    return X_aug, y_aug, was_augmented
 
 
 def evaluate_on_original_training_data(
@@ -205,4 +191,62 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    main()
+    """plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.ACCURACY.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.ACCURACY.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.F1SCORE.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.F1SCORE.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.RECALL.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.RECALL.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.PRECISION.value,
+        stage="post",
+        comp=True,
+    )
+    plot_std_performance(
+        file_path=MANUAL_FILE_PATH,
+        obs_class=1,
+        metric=PerformanceMetric.PRECISION.value,
+        stage="post",
+        comp=True,
+    )"""
+    plot_gcg_across_ratios(
+        MANUAL_FILE_PATH, augment_method=AugmentationMethod.SMOTE.value
+    )
