@@ -176,31 +176,4 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
 
 
 if __name__ == "__main__":
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=0,
-        metric=PerformanceMetric.PRECISION.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=1,
-        metric=PerformanceMetric.PRECISION.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=2,
-        metric=PerformanceMetric.PRECISION.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=3,
-        metric=PerformanceMetric.PRECISION.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
+    plot_performance_accross_ratios(MANUAL_FILE_PATH, obs_class=1, n_cols=2, n_rows=2)

@@ -9,6 +9,8 @@ class AugmentationMethod(Enum):
     SMOTE = "smote"
     OVERSAMPLING = "oversampling"
     SVM_SMOTE = "svm_smote"
+    BORDERLINE_SMOTE = "borderline_smote"
+    ADASYN = "adasyn"
 
 
 class PerformanceMetric(Enum):

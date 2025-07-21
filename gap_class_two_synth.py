@@ -7,65 +7,57 @@ from sklearn.metrics import accuracy_score
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
-from enums import AugmentationMethod, Dataset, PerformanceMetric, PerformanceStage
+from enums import AugmentationMethod, Dataset
 from model import (
     assign_gap_class,
+    augment_adasyn_gap_class,
+    augment_borderline_smote_gap_class,
     augment_oversampling_gap_class,
     augment_smote_gap_class,
     augment_svm_smote_gap_class,
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_performance_accross_ratios, plot_std_performance
+from visualization import plot_gcg, plot_performance_across_thresholds
 
 # === CONFIG ===
 # General Data
 UNCERTAINTY_THRESHOLD: float = CONFIG["uncertainty_threshold"]
 RANDOM_STATES: int = CONFIG["random_states"]
 FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
-METHOD: AugmentationMethod = AugmentationMethod.SMOTE
+NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["synth_thresholds"]
-GAP_RATIOS: float = CONFIG["gap_ratios"]
+THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
+GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
 SYNTH_DIR: str = "results/synth_dataset/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
+FILE_NAME: str = f"two_synth_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
-
-MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.10_16.20.csv"
+MANUAL_FILE_PATH: str = (
+    "results/synth_dataset/two_synth_results_all-methods_07.15_17.25.csv"
+)
 
 PRE_CLASSIFIER = None
 
 augmentation_dispatch = {
-    AugmentationMethod.SMOTE: augment_smote_gap_class,
     AugmentationMethod.OVERSAMPLING: augment_oversampling_gap_class,
+    AugmentationMethod.SMOTE: augment_smote_gap_class,
     AugmentationMethod.SVM_SMOTE: augment_svm_smote_gap_class,
+    AugmentationMethod.BORDERLINE_SMOTE: augment_borderline_smote_gap_class,
+    AugmentationMethod.ADASYN: augment_adasyn_gap_class,
 }
 
 
 def main() -> None:
-    for seed in RANDOM_STATES:
-        get_seed_performance(seed=seed)
-
-    plot_performance_accross_ratios(
-        file_path=FILE_PATH,
-        obs_class=1,
-        n_cols=2,
-        n_rows=2,
-    )
+    for method in augmentation_dispatch:
+        for seed in RANDOM_STATES:
+            get_seed_performance_for_method(seed=seed, augment_method=method)
 
 
-def get_seed_performance(seed: int) -> None:
-    """
-    Args:
-        seed: Chosen seed for the performance measurement.
-
-    Runs the experimental pipeline for the given seed and saves
-    the results to a csv.
-    """
+def get_seed_performance_for_method(seed: int, augment_method: AugmentationMethod):
     for threshold in THRESHOLDS:
         for gap_ratio in GAP_RATIOS:
             print(
@@ -74,30 +66,14 @@ def get_seed_performance(seed: int) -> None:
 
             # == Get Base Performance ==
             X_train, X_test, y_train, y_test = prepare_data()
-            print("--- SPLIT INFO ---")
-            print("X_train shape:", X_train.shape)
-            print("X_test shape:", X_test.shape)
-            print("y_train counts:", np.bincount(y_train))
-            print("y_test counts:", np.bincount(y_test))
-            print("Checksum (X_train[:10]):", hash(X_train[:10].tobytes()))
-            print("Checksum (y_train[:10]):", hash(y_train[:10].tobytes()))
-            print("------------------")
-            # checken das die daten die gleichen sind
             classifier = clean_train_classifier(X_train, y_train, seed)
-
-            y_pred = classifier.predict(X_test)
-            acc = accuracy_score(y_test, y_pred)
-            print(f"[PRE-GAP] Accuracy: {acc:.4f}")
-
-            global PRE_CLASSIFIER
-            PRE_CLASSIFIER = classifier
 
             evaluate_and_log_model(
                 classifier=classifier,
                 X_test=X_test,
                 Y_test=y_test,
                 file_path=FILE_PATH,
-                method=METHOD.value,
+                method=augment_method.value,
                 stage="pre",
                 seed=seed,
                 threshold=threshold,
@@ -111,33 +87,26 @@ def get_seed_performance(seed: int) -> None:
                 X=X_train,
                 Y=y_train,
                 threshold=threshold,
+                class_count=NUMBER_OF_CLASSES,
             )
 
-            X_aug, y_aug = augment_data(X_train, y_train_gap, gap_ratio)
+            X_aug, y_aug = augment_data(X_train, y_train_gap, gap_ratio, augment_method)
+            y_aug = np.where(
+                y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
+            )
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
-
-            print("== FINAL EVAL DEBUG ==")
-            print("y_test[:10]:", y_test[:10])
-            print("predicted:", classifier_aug.predict(X_test[:10]))
-            print(
-                "Accuracy (should match printed value):",
-                accuracy_score(y_test, classifier_aug.predict(X_test)),
-            )
 
             evaluate_and_log_model(
                 classifier=classifier_aug,
                 X_test=X_test,
                 Y_test=y_test,
                 file_path=FILE_PATH,
-                method=METHOD.value,
+                method=augment_method.value,
                 stage="post",
                 seed=seed,
                 threshold=threshold,
                 gap_ratio=gap_ratio,
-                pre_classifier=PRE_CLASSIFIER,
-            )
-            evaluate_on_original_training_data(
-                classifier_aug, X_test, y_test, X_aug, y_aug
+                pre_classifier=classifier,
             )
 
 
@@ -150,24 +119,50 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(mode=Dataset.BLOBS)
+    X, y = generate_dataset(Dataset.BLOBS)
 
-    print("=== DATASET INFO ===")
-    print("X shape:", X.shape)
-    print("Y shape:", y.shape)
-    print("Label counts:", np.bincount(y))
-    print("X mean (per dim):", np.mean(X, axis=0))
-    print("X std (per dim):", np.std(X, axis=0))
-    print("First 5 samples (X):", X[:5])
-    print("First 5 labels (Y):", y[:5])
-    print("Checksum (X):", hash(X[:10].tobytes()))
-    print("Checksum (Y):", hash(y[:10].tobytes()))
-    print("=====================")
+    global NUMBER_OF_CLASSES
+    NUMBER_OF_CLASSES = len(np.unique(y))
+    print(f"Number of classes in dataset: {NUMBER_OF_CLASSES}")
 
     return split_dataset(X, y)
 
 
-def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.ndarray]:
+def assign_and_log_gap_class(classifier, X_train, y_train) -> np.ndarray:
+    """
+    Identifies uncertain training samples and assigns them to the gap class.
+
+    Args:
+        classifier: Trained classifier used for confidence evaluation.
+        X_train: Training features.
+        y_train: Original training labels.
+
+    Returns:
+        Modified training labels with low-confidence points relabeled as gap class.
+    """
+
+    y_train_with_gap, partial_gap_masks = assign_gap_class(
+        classifier,
+        X_train,
+        y_train,
+        threshold=UNCERTAINTY_THRESHOLD,
+        class_count=NUMBER_OF_CLASSES,
+    )
+
+    gap_label = CONFIG["first_gap_class_label"]
+    gap_indices = y_train_with_gap == gap_label
+    original_labels_of_gap_samples = y_train[gap_indices]
+
+    print(
+        f"Original labels of gap samples: {np.unique(original_labels_of_gap_samples)}"
+    )
+
+    return y_train_with_gap
+
+
+def augment_data(
+    X_train, y_train_with_gap, gap_ratio, augment_method: AugmentationMethod
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Applies the selected augmentation method to the gap class to balance it.
 
@@ -179,9 +174,9 @@ def augment_data(X_train, y_train_with_gap, gap_ratio) -> Tuple[np.ndarray, np.n
         Tuple of (X_aug, y_aug): Augmented feature and label arrays.
     """
 
-    augment_fn = augmentation_dispatch.get(METHOD)
+    augment_fn = augmentation_dispatch.get(augment_method)
     if not augment_fn:
-        raise ValueError(f"Unsupported augmentation method: {METHOD}")
+        raise ValueError(f"Unsupported augmentation method: {augment_method.value}")
 
     return augment_fn(
         X_train,
@@ -205,4 +200,12 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    main()
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.3
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.9
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 1.5
+    )

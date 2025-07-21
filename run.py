@@ -25,7 +25,7 @@ GAP_RATIO: float = CONFIG["gap_ratio"]
 GAP_CLASS_LABEL: int = CONFIG["gap_class_label"]
 METHOD: AugmentationMethod = AugmentationMethod.SMOTE
 CSV_PATH: str = generate_filename(METHOD, UNCERTAINTY_THRESHOLD, base_dir="results")
-NUMBER_OF_CLASSES: int = 4
+NUMBER_OF_CLASSES: int = 2
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -47,8 +47,23 @@ def main() -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
+    print(
+        f"Run (seed={RANDOM_STATE}): threshold={UNCERTAINTY_THRESHOLD} & gap_ratio={round(GAP_RATIO, 2)}"
+    )
+
     X_train, X_test, y_train, y_test = prepare_data()
+    print("--- SPLIT INFO ---")
+    print("X_train shape:", X_train.shape)
+    print("X_test shape:", X_test.shape)
+    print("y_train counts:", np.bincount(y_train))
+    print("y_test counts:", np.bincount(y_test))
+    print("Checksum (X_train[:10]):", hash(X_train[:10].tobytes()))
+    print("Checksum (y_train[:10]):", hash(y_train[:10].tobytes()))
+    print("------------------")
+
     classifier = clean_train_classifier(X_train, y_train, CONFIG["random_state"])
+
+    pre_classifier = classifier
     evaluate_and_visualize_baseline(
         classifier, X_test, y_test, X_train, y_train, axes[0]
     )
@@ -59,9 +74,9 @@ def main() -> None:
 
     classifier_aug = clean_train_classifier(X_aug, y_aug, CONFIG["random_state"])
     evaluate_and_visualize_augmented(
-        classifier_aug, X_test, y_test, X_aug, y_aug, axes[1]
+        classifier_aug, X_test, y_test, X_aug, y_aug, axes[1], pre_classifier
     )
-    evaluate_on_original_training_data(classifier_aug, X_test, y_test, X_aug, y_aug)
+    evaluate_on_test_data(classifier_aug, X_test, y_test)
 
     plt.tight_layout()
     plt.show()
@@ -76,7 +91,20 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(Dataset.MULTI_BLOBS)
+    X, y = generate_dataset(Dataset.BLOBS)
+
+    print("=== DATASET INFO ===")
+    print("X shape:", X.shape)
+    print("Y shape:", y.shape)
+    print("Label counts:", np.bincount(y))
+    print("X mean (per dim):", np.mean(X, axis=0))
+    print("X std (per dim):", np.std(X, axis=0))
+    print("First 5 samples (X):", X[:5])
+    print("First 5 labels (Y):", y[:5])
+    print("Checksum (X):", hash(X[:10].tobytes()))
+    print("Checksum (Y):", hash(y[:10].tobytes()))
+    print("=====================")
+
     NUMBER_OF_CLASSES = len(np.unique(y))
     print(f"Number of classes in dataset: {NUMBER_OF_CLASSES}")
     return split_dataset(X, y)
@@ -111,6 +139,7 @@ def evaluate_and_visualize_baseline(
         seed=RANDOM_STATE,
         threshold=UNCERTAINTY_THRESHOLD,
         gap_ratio=GAP_RATIO,
+        pre_classifier=None,
     )
 
     try:
@@ -200,7 +229,7 @@ def augment_data(X_train, y_train_with_gap) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def evaluate_and_visualize_augmented(
-    classifier, X_test, y_test, X_aug, y_aug, ax
+    classifier, X_test, y_test, X_aug, y_aug, ax, pre_classifier=None
 ) -> None:
     """
     Evaluates the classifier after augmentation and visualizes the new decision boundary.
@@ -224,6 +253,7 @@ def evaluate_and_visualize_augmented(
         seed=RANDOM_STATE,
         threshold=UNCERTAINTY_THRESHOLD,
         gap_ratio=GAP_RATIO,
+        pre_classifier=pre_classifier,
     )
 
     try:
@@ -234,17 +264,14 @@ def evaluate_and_visualize_augmented(
         print(f"Error during visualization: {e}")
 
 
-def evaluate_on_original_training_data(
-    classifier, X_train_orig, y_train_with_gap, X_aug, y_aug
-):
-    # Identify indices of synthetic samples
-    orig_count = len(X_train_orig)
-    X_orig_only = X_aug[:orig_count]
-    y_orig_only = y_aug[:orig_count]
+def evaluate_on_test_data(classifier, X_test, y_test):
+    from model import sanitize_predictions
 
-    y_pred_orig = classifier.predict(X_orig_only)
-    acc_orig = accuracy_score(y_orig_only, y_pred_orig)
-    print(f"[POST GAP (ON ORIGINAL TEST DATA)] Accuracy: {acc_orig:.4f}")
+    y_pred = classifier.predict(X_test)
+    y_pred = sanitize_predictions(y_pred, valid_labels=np.unique(y_test))
+
+    acc = accuracy_score(y_test, y_pred)
+    print(f"[POST GAP (ON TEST DATA)] Accuracy: {acc:.4f}")
 
 
 if __name__ == "__main__":

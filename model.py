@@ -39,14 +39,40 @@ def clean_train_classifier(X_train, Y_train, seed):
 
 
 def evaluate_and_log_model(
-    classifier, X_test, Y_test, file_path, method, stage, seed, threshold, gap_ratio
+    classifier,
+    X_test,
+    Y_test,
+    file_path,
+    method,
+    stage,
+    seed,
+    threshold,
+    gap_ratio,
+    pre_classifier,
 ):
     y_pred = classifier.predict(X_test)
+
+    valid_classes = np.unique(Y_test)
+    y_pred = sanitize_predictions(y_pred, valid_classes)
+
     acc = accuracy_score(Y_test, y_pred)
 
     precision, recall, f1, support = precision_recall_fscore_support(
         Y_test, y_pred, labels=np.unique(Y_test), zero_division=0
     )
+
+    if stage == "post":
+        gap_clarity_gain = compute_gap_clarity_gain(
+            pre_classifier=pre_classifier,
+            post_classifier=classifier,
+            X_test=X_test,
+            y_test=Y_test,
+            threshold=threshold,
+            class_count=len(np.unique(Y_test)),
+        )
+        print(f"Gap Clarity Gain: {gap_clarity_gain:.4f}")
+    else:
+        gap_clarity_gain = None
 
     for class_label, p, r, f, s in zip(
         np.unique(Y_test), precision, recall, f1, support
@@ -63,8 +89,51 @@ def evaluate_and_log_model(
             recall=r,
             f1=f,
             support=s,
-            accuracy=acc,  # ✅ Accuracy is passed here
+            accuracy=acc,
+            gcg=gap_clarity_gain,
         )
+
+
+def sanitize_predictions(y_pred, valid_labels):
+    """
+    Replace any predictions outside of valid labels with the most frequent label.
+    """
+    from collections import Counter
+
+    majority_class = Counter(valid_labels).most_common(1)[0][0]
+    return np.array([y if y in valid_labels else majority_class for y in y_pred])
+
+
+def compute_gap_clarity_gain(
+    pre_classifier,
+    post_classifier,
+    X_test,
+    y_test,
+    threshold=CONFIG["uncertainty_threshold"],
+    class_count: int = 2,
+):
+    pre_proba = pre_classifier.predict_proba(X_test)
+    post_proba = post_classifier.predict_proba(X_test)
+
+    base_classes = [0, 1]
+
+    conf_before = np.max(pre_proba[:, base_classes], axis=1)
+    conf_after = np.max(post_proba[:, base_classes], axis=1)
+
+    # print(f"Conf before: {conf_before}")
+    # print(f"Conf after: {conf_after}")
+
+    boundary_mask = conf_before < (1 - threshold)
+
+    if np.sum(boundary_mask) == 0:
+        # print("No boundary samples found. Cannot compute clarity gain.")
+        return 0.0
+
+    avg_conf_before = np.median(conf_before[boundary_mask])
+    avg_conf_after = np.median(conf_after[boundary_mask])
+
+    gcg_norm = (avg_conf_after - avg_conf_before) / (1 - avg_conf_before)
+    return gcg_norm
 
 
 def assign_gap_class(
@@ -123,7 +192,9 @@ def assign_gap_class(
         return Y_extended, partial_gap_masks
 
 
-def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"]):
+def augment_oversampling_gap_class(
+    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+):
     """
     Augments the dataset by oversampling the gap class (label 2) using basic oversampling.
 
@@ -140,7 +211,10 @@ def augment_oversampling_gap_class(X, Y, target_class=config["gap_class_label"])
             - ndarray: Augmented feature matrix with new synthetic gap samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
-    needs_aug, target_count = get_gap_class_target_count(Y, target_class)
+    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
+    )
+
     if not needs_aug:
         print("No oversampling needed.")
         return X, Y
@@ -233,7 +307,7 @@ def augment_svm_smote_gap_class(
             - ndarray: Augmented feature matrix with new synthetic samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
-    needs_aug, target_count = get_gap_class_target_count(
+    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
     if not needs_aug:
@@ -256,7 +330,7 @@ def augment_svm_smote_gap_class(
 def augment_borderline_smote_gap_class(
     X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
 ):
-    needs_aug, target_count = get_gap_class_target_count(
+    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
     if not needs_aug:
@@ -279,7 +353,7 @@ def augment_borderline_smote_gap_class(
 def augment_adasyn_gap_class(
     X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
 ):
-    needs_aug, target_count = get_gap_class_target_count(
+    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
     if not needs_aug:

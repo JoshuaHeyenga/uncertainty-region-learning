@@ -3,8 +3,10 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 from matplotlib.colors import ListedColormap
+from matplotlib.lines import Line2D
 
 from config import CONFIG
+from enums import AugmentationMethod
 
 # === CONFIG ===
 
@@ -120,7 +122,7 @@ def plot_performance_accross_ratios(
     fig, axes = plt.subplots(
         nrows=n_rows,
         ncols=n_cols,
-        figsize=(5 * n_cols, 5 * n_rows),
+        figsize=(5 * n_cols, 3 * n_rows),
         sharey=True,
         constrained_layout=True,
     )
@@ -157,7 +159,6 @@ def plot_performance_accross_ratios(
                 y=pre_mean_df[metric].mean(),
                 linestyle="--",
                 color=COLORS[metric],
-                label=f"Pre {metric.capitalize()}",
             )
 
             ax.set_title(f"Threshold = {threshold}")
@@ -165,7 +166,20 @@ def plot_performance_accross_ratios(
             ax.grid(True)
             if ax == axes[0]:
                 ax.set_ylabel("Score")
-                ax.legend(loc="lower left")
+
+                pre_legend_proxy = Line2D(
+                    [0], [0], linestyle="--", color="gray", label="Pre values"
+                )
+                handles, labels = ax.get_legend_handles_labels()
+                handles.insert(0, pre_legend_proxy)
+                labels.insert(0, "Pre values")
+                ax.legend(
+                    handles,
+                    labels,
+                    title="Metric & Stage",
+                    loc="lower right",
+                )
+
     plt.show()
 
 
@@ -235,5 +249,117 @@ def plot_std_performance(
     plt.show()
 
 
-def plot_performance_accross_thresholds():
-    return
+def plot_performance_across_thresholds(
+    file_path: str, augment_method: str, gap_ratio: float
+):
+    total_df = pd.read_csv(file_path)
+
+    # Filter for method
+    method_df = total_df[
+        (total_df["method"] == augment_method) & (total_df["gap_ratio"] == gap_ratio)
+    ]
+    print(f"{len(method_df)} rows found for method '{augment_method}'")
+
+    # Metrics to include
+    metrics = ["precision", "recall", "f1", "accuracy"]
+
+    # Separate pre and post stages
+    pre_df = method_df[method_df["stage"] == "pre"]
+    post_df = method_df[method_df["stage"] == "post"]
+
+    # Group and average over thresholds
+    pre_grouped = (
+        pre_df.groupby("threshold")[metrics]
+        .mean()
+        .reset_index()
+        .sort_values("threshold")
+    )
+    post_grouped = (
+        post_df.groupby("threshold")[metrics]
+        .mean()
+        .reset_index()
+        .sort_values("threshold")
+    )
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for metric in metrics:
+        # Pre-gap (dashed line)
+        ax.plot(
+            pre_grouped["threshold"],
+            pre_grouped[metric],
+            linestyle="--",
+            color=COLORS.get(metric, None),
+        )
+        # Post-gap (solid line)
+        ax.plot(
+            post_grouped["threshold"],
+            post_grouped[metric],
+            marker="o",
+            linestyle="-",
+            label=f"Post {metric.capitalize()}",
+            color=COLORS.get(metric, None),
+        )
+
+    # ax.set_title(f"Performance Across Thresholds ({augment_method})", fontsize=14)
+    ax.set_xlabel("Threshold", fontsize=16)
+    ax.set_ylabel("Score", fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.grid(True)
+
+    pre_legend_proxy = Line2D(
+        [0], [0], linestyle="--", color="gray", label="Pre values"
+    )
+    handles, labels = ax.get_legend_handles_labels()
+    handles.insert(0, pre_legend_proxy)
+    labels.insert(0, "Pre values")
+    ax.legend(
+        handles,
+        labels,
+        title="Metric & Stage",
+        loc="lower right",
+        fontsize=13,
+        title_fontsize=14,
+    )
+
+    ax.tick_params(axis="both", labelsize=13)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_gcg(file_path: str, augment_method: str):
+    total_df = pd.read_csv(file_path)
+
+    gcg_df = total_df[
+        (total_df["method"] == augment_method) & (total_df["stage"] == "post")
+    ]
+
+    grouped = (
+        gcg_df.groupby("threshold")["gcg"].mean().reset_index().sort_values("threshold")
+    )
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(
+        grouped["threshold"],
+        grouped["gcg"],
+        marker="o",
+        color="darkgreen",
+        label="Avg GCG Score",
+    )
+
+    ax.set_xlabel("Threshold", fontsize=16)
+    ax.set_ylabel("GCG", fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.grid(True)
+    ax.legend(
+        loc="lower right",
+        fontsize=13,
+        title_fontsize=14,
+    )
+    ax.tick_params(axis="both", labelsize=13)
+
+    plt.tight_layout()
+    plt.show()

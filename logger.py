@@ -53,6 +53,7 @@ def log_metrics_to_csv(
     support: int,
     gap_ratio: Optional[float] = None,
     accuracy: Optional[float] = None,
+    gcg: Optional[float] = None,
 ) -> None:
     """
     Log evaluation metrics to a CSV file. Appends the new row if the file exists, otherwise creates a new file.
@@ -85,6 +86,7 @@ def log_metrics_to_csv(
                 "f1": f1,
                 "support": support,
                 "accuracy": accuracy,
+                "gcg": gcg,
             }
         ]
     )
