@@ -31,7 +31,7 @@ def clean_train_classifier(X_train, Y_train, seed):
         hidden_layer_sizes=(50,),
         activation="relu",  # tanh, logistic, relu
         solver="adam",
-        max_iter=2000,
+        max_iter=10000,
         random_state=seed,
     )
     classifier.fit(X_train, Y_train)
@@ -217,13 +217,18 @@ def augment_oversampling_gap_class(
 
     if not needs_aug:
         print("No oversampling needed.")
-        return X, Y
+        return X, Y, False
 
     n_existing = np.sum(Y == target_class)
     n_to_generate = target_count - n_existing
 
     X_target = X[Y == target_class]
     Y_target = Y[Y == target_class]
+    n_existing = len(Y_target)
+
+    if n_existing < 2:
+        print("Not enough uncertainty samples. Skipping augmentation.")
+        return X, Y, False
 
     X_oversampled, Y_oversampled = resample(
         X_target,
@@ -237,7 +242,7 @@ def augment_oversampling_gap_class(
     X_augmented = np.vstack((X, X_oversampled))
     Y_augmented = np.hstack((Y, Y_oversampled))
 
-    return X_augmented, Y_augmented
+    return X_augmented, Y_augmented, True
 
 
 def augment_smote_gap_class(
@@ -267,14 +272,22 @@ def augment_smote_gap_class(
     if not needs_aug:
         print("No SMOTE needed.")
         return X, Y, False
-    else:
-        print(f"Augmenting gap class {target_class} to target count: {target_count}")
 
-    smoter = SMOTE(
-        sampling_strategy={target_class: target_count},
-        random_state=config["random_state"],
-    )
-    X_aug, Y_aug = smoter.fit_resample(X, Y)
+    n_existing = np.sum(Y == target_class)
+    if n_existing < 2:
+        print("Not enough uncertainty samples. Skipping augmentation.")
+        return X, Y, False
+
+    try:
+        smoter = SMOTE(
+            sampling_strategy={target_class: target_count},
+            random_state=config["random_state"],
+        )
+        X_aug, Y_aug = smoter.fit_resample(X, Y)
+
+    except ValueError as e:
+        print(f"SMOTE failed: {e}")
+        return X, Y, False
 
     return X_aug, Y_aug, True
 
@@ -304,7 +317,12 @@ def augment_svm_smote_gap_class(
     )
     if not needs_aug:
         print("No SVM-SMOTE needed.")
-        return X, Y
+        return X, Y, False
+
+    n_existing = np.sum(Y == target_class)
+    if n_existing < 2:
+        print("Not enough uncertainty samples. Skipping augmentation.")
+        return X, Y, False
 
     try:
         smoter = SVMSMOTE(
@@ -314,9 +332,9 @@ def augment_svm_smote_gap_class(
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
         print(f"SVMSMOTE failed: {e}")
-        return X, Y
+        return X, Y, False
 
-    return X_aug, Y_aug
+    return X_aug, Y_aug, True
 
 
 def augment_borderline_smote_gap_class(
@@ -327,7 +345,12 @@ def augment_borderline_smote_gap_class(
     )
     if not needs_aug:
         print("No Borderline-SMOTE needed.")
-        return X, Y
+        return X, Y, False
+
+    n_existing = np.sum(Y == target_class)
+    if n_existing < 2:
+        print("Not enough uncertainty samples. Skipping augmentation.")
+        return X, Y, False
 
     try:
         smoter = BorderlineSMOTE(
@@ -337,9 +360,9 @@ def augment_borderline_smote_gap_class(
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
         print(f"BorderlineSMOTE failed: {e}")
-        return X, Y
+        return X, Y, False
 
-    return X_aug, Y_aug
+    return X_aug, Y_aug, True
 
 
 def augment_adasyn_gap_class(
@@ -350,7 +373,12 @@ def augment_adasyn_gap_class(
     )
     if not needs_aug:
         print("No ADASYN needed.")
-        return X, Y
+        return X, Y, False
+
+    n_existing = np.sum(Y == target_class)
+    if n_existing < 2:
+        print("Not enough uncertainty samples. Skipping augmentation.")
+        return X, Y, False
 
     try:
         adasyn = ADASYN(
@@ -360,9 +388,9 @@ def augment_adasyn_gap_class(
         X_aug, Y_aug = adasyn.fit_resample(X, Y)
     except ValueError as e:
         print(f"ADASYN failed: {e}")
-        return X, Y
+        return X, Y, False
 
-    return X_aug, Y_aug
+    return X_aug, Y_aug, True
 
 
 def get_gap_class_target_count(
@@ -385,26 +413,17 @@ def get_gap_class_target_count(
         label: np.sum(Y == label) for label in np.unique(Y) if label != target_class
     }
 
-    if len(class_counts) < 2:
-        # Not enough base classes to compute average of top two
-        return False, 0
+    avg_class_size = np.mean(list(class_counts.values()))
+    non_gap_labels = list(class_counts.keys())
 
-    # Get the counts of the two largest classes
-    top_two_counts = sorted(class_counts.values(), reverse=True)[:2]
-    avg_top_two = np.mean(top_two_counts)
-
-    top_two_classes = sorted(class_counts.items(), key=lambda x: x[1], reverse=True)[:2]
-    avg_top_two = np.mean([v for _, v in top_two_classes])
-    top_two_labels = [k for k, _ in top_two_classes]
-
-    target_count = int(ratio * avg_top_two)
+    target_count = int(ratio * avg_class_size)
     current_gap_count = np.sum(Y == target_class)
 
     needs_augmentation = current_gap_count < target_count
     return (
         needs_augmentation,
         target_count,
-        avg_top_two,
+        avg_class_size,
         current_gap_count,
-        top_two_labels,
+        non_gap_labels,
     )

@@ -304,7 +304,7 @@ def plot_performance_across_thresholds(
     # ax.set_title(f"Performance Across Thresholds ({augment_method})", fontsize=14)
     ax.set_xlabel("Threshold", fontsize=16)
     ax.set_ylabel("Score", fontsize=16)
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.3f"))
     ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.grid(True)
 
@@ -318,7 +318,7 @@ def plot_performance_across_thresholds(
         handles,
         labels,
         title="Metric & Stage",
-        loc="lower right",
+        loc="lower left",
         fontsize=13,
         title_fontsize=14,
     )
@@ -329,11 +329,13 @@ def plot_performance_across_thresholds(
     plt.show()
 
 
-def plot_gcg(file_path: str, augment_method: str):
+def plot_gcg(file_path: str, augment_method: str, gap_ratio: float):
     total_df = pd.read_csv(file_path)
 
     gcg_df = total_df[
-        (total_df["method"] == augment_method) & (total_df["stage"] == "post")
+        (total_df["method"] == augment_method)
+        & (total_df["stage"] == "post")
+        & (total_df["gap_ratio"] == gap_ratio)
     ]
 
     grouped = (

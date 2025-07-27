@@ -37,7 +37,7 @@ FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
 PRE_CLASSIFIER = None
 
-MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.11_15.46.csv"
+MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.21_17.46.csv"
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -185,4 +185,31 @@ def augment_data(
 
 
 if __name__ == "__main__":
-    main()
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        0,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        1,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        2,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        3,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )

@@ -28,16 +28,16 @@ FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
 NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
+THRESHOLDS: float = [0.1, 0.2, 0.3, 0.4]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/synth_dataset/"
+SYNTH_DIR: str = "results/iris_dataset/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"two_synth_results_all-methods_{TIMESTAMP}.csv"
+FILE_NAME: str = f"wine_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/two_synth_results_all-methods_07.22_21.12.csv"
+    "results/multi_dataset/multi_synth_results_all-methods_07.27_09.09.csv"
 )
 
 PRE_CLASSIFIER = None
@@ -68,6 +68,16 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
             X_train, X_test, y_train, y_test = prepare_data()
             classifier = clean_train_classifier(X_train, y_train, seed)
 
+            proba = classifier.predict_proba(X_train)
+            max_conf = np.max(proba, axis=1)
+            print(
+                "Confidence stats:",
+                np.min(max_conf),
+                np.mean(max_conf),
+                np.median(max_conf),
+            )
+            print("Samples <0.9 confidence:", np.sum(max_conf < 0.9))
+
             global PRE_CLASSIFIER
             PRE_CLASSIFIER = classifier
 
@@ -94,6 +104,8 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 threshold=threshold,
                 class_count=NUMBER_OF_CLASSES,
             )
+
+            print(f"Gap samples found: {np.sum(y_train_gap == FIRST_GAP_CLASS_LABEL)}")
 
             X_aug, y_aug, was_augmented = augment_data(
                 X_train, y_train_gap, gap_ratio, augment_method
@@ -134,45 +146,10 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(Dataset.BLOBS)
-
+    X, y = generate_dataset(mode=Dataset.WINE)
     global NUMBER_OF_CLASSES
     NUMBER_OF_CLASSES = len(np.unique(y))
-    print(f"Number of classes in dataset: {NUMBER_OF_CLASSES}")
-
     return split_dataset(X, y)
-
-
-def assign_and_log_gap_class(classifier, X_train, y_train) -> np.ndarray:
-    """
-    Identifies uncertain training samples and assigns them to the gap class.
-
-    Args:
-        classifier: Trained classifier used for confidence evaluation.
-        X_train: Training features.
-        y_train: Original training labels.
-
-    Returns:
-        Modified training labels with low-confidence points relabeled as gap class.
-    """
-
-    y_train_with_gap, partial_gap_masks = assign_gap_class(
-        classifier,
-        X_train,
-        y_train,
-        threshold=UNCERTAINTY_THRESHOLD,
-        class_count=NUMBER_OF_CLASSES,
-    )
-
-    gap_label = CONFIG["first_gap_class_label"]
-    gap_indices = y_train_with_gap == gap_label
-    original_labels_of_gap_samples = y_train[gap_indices]
-
-    print(
-        f"Original labels of gap samples: {np.unique(original_labels_of_gap_samples)}"
-    )
-
-    return y_train_with_gap
 
 
 def augment_data(
@@ -203,38 +180,5 @@ def augment_data(
     return X_aug, y_aug, was_augmented
 
 
-def evaluate_on_original_training_data(
-    classifier, X_train_orig, y_train_with_gap, X_aug, y_aug
-):
-    # Identify indices of synthetic samples
-    orig_count = len(X_train_orig)
-    X_orig_only = X_aug[:orig_count]
-    y_orig_only = y_aug[:orig_count]
-
-    y_pred_orig = classifier.predict(X_orig_only)
-    acc_orig = accuracy_score(y_orig_only, y_pred_orig)
-    print(f"[POST GAP (ON ORIGINAL TEST DATA)] Accuracy: {acc_orig:.4f}")
-
-
 if __name__ == "__main__":
-    """plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
-    )"""
-
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5)
+    main()
