@@ -32,12 +32,14 @@ GAP_RATIOS: float = CONFIG["gap_ratios"]
 # Logging
 SYNTH_DIR: str = "results/synth_dataset/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"synth_results_{METHOD.value}_{TIMESTAMP}.csv"
+FILE_NAME: str = f"multi-ratio_results_{METHOD.value}_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
 PRE_CLASSIFIER = None
 
-MANUAL_FILE_PATH: str = "results/synth_dataset/synth_results_smote_07.21_17.46.csv"
+MANUAL_FILE_PATH: str = (
+    "results/synth_dataset/multi-ratio_results_smote_07.28_15.23.csv"
+)
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -186,30 +188,9 @@ def augment_data(
 
 if __name__ == "__main__":
     plot_std_performance(
-        MANUAL_FILE_PATH,
-        0,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        1,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        2,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        3,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
+        file_path=MANUAL_FILE_PATH,
+        obs_class=0,
+        metric=PerformanceMetric.F1SCORE.value,
+        stage=PerformanceStage.POST.value,
+        comp=True,
     )

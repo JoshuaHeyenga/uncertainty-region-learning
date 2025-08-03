@@ -91,7 +91,7 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(Dataset.BLOBS)
+    X, y = generate_dataset(Dataset.MULTI_BLOBS)
 
     print("=== DATASET INFO ===")
     print("X shape:", X.shape)

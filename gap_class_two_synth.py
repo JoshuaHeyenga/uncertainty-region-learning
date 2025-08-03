@@ -37,7 +37,7 @@ TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"two_synth_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/two_synth_results_all-methods_07.22_21.12.csv"
+    "results/synth_dataset/two_synth_results_all-methods_07.28_16.06.csv"
 )
 
 PRE_CLASSIFIER = None
@@ -217,24 +217,5 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    """plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
-    )"""
-
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01)
     plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25)
     plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5)

@@ -75,6 +75,24 @@ def generate_dataset(mode: Dataset) -> tuple:
 
         return X, Y
 
+    if mode == Dataset.CANCER:
+        df = pd.read_csv("data/wdbc.data", header=None)
+
+        columns = ["ID", "diagnosis"] + [f"feature_{i}" for i in range(30)]
+        df.columns = columns
+
+        df = df.drop(columns=["ID"])
+
+        df["diagnosis"] = df["diagnosis"].map({"M": 1, "B": 0})
+
+        X = df.drop(columns=["diagnosis"]).values
+        Y = df["diagnosis"].values
+
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+
+        return X, Y
+
 
 def split_dataset(X, Y, test_size=0.2):
     """

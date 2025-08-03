@@ -120,13 +120,9 @@ def compute_gap_clarity_gain(
     conf_before = np.max(pre_proba[:, base_classes], axis=1)
     conf_after = np.max(post_proba[:, base_classes], axis=1)
 
-    # print(f"Conf before: {conf_before}")
-    # print(f"Conf after: {conf_after}")
-
     boundary_mask = conf_before < (1 - threshold)
 
     if np.sum(boundary_mask) == 0:
-        # print("No boundary samples found. Cannot compute clarity gain.")
         return 0.0
 
     avg_conf_before = np.median(conf_before[boundary_mask])
@@ -211,16 +207,16 @@ def augment_oversampling_gap_class(
             - ndarray: Augmented feature matrix with new synthetic gap samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
-    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
+    _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
 
-    if not needs_aug:
-        print("No oversampling needed.")
-        return X, Y, False
+    # if not needs_aug:
+    # print("No oversampling needed.")
+    # return X, Y, False
 
     n_existing = np.sum(Y == target_class)
-    n_to_generate = target_count - n_existing
+    # n_to_generate = target_count - n_existing
 
     X_target = X[Y == target_class]
     Y_target = Y[Y == target_class]
@@ -234,7 +230,7 @@ def augment_oversampling_gap_class(
         X_target,
         Y_target,
         replace=True,
-        n_samples=n_to_generate,
+        n_samples=target_count,  # originally n_to_generate
         random_state=config["random_state"],
     )
 
@@ -265,22 +261,19 @@ def augment_smote_gap_class(
             - ndarray: Corresponding label vector including labels for new samples.
     """
 
-    needs_aug, target_count, avg_top_two, current_gap_size, top_two_labels = (
-        get_gap_class_target_count(Y, target_class, ratio=gap_ratio)
+    _, target_count, _, _, _ = get_gap_class_target_count(
+        Y, target_class, ratio=gap_ratio
     )
 
-    if not needs_aug:
-        print("No SMOTE needed.")
-        return X, Y, False
-
     n_existing = np.sum(Y == target_class)
+    total_count = n_existing + target_count
     if n_existing < 2:
         print("Not enough uncertainty samples. Skipping augmentation.")
         return X, Y, False
 
     try:
         smoter = SMOTE(
-            sampling_strategy={target_class: target_count},
+            sampling_strategy={target_class: total_count},
             random_state=config["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
@@ -312,21 +305,19 @@ def augment_svm_smote_gap_class(
             - ndarray: Augmented feature matrix with new synthetic samples.
             - ndarray: Corresponding label vector including labels for new samples.
     """
-    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
+    _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
-    if not needs_aug:
-        print("No SVM-SMOTE needed.")
-        return X, Y, False
 
     n_existing = np.sum(Y == target_class)
+    total_count = n_existing + target_count
     if n_existing < 2:
         print("Not enough uncertainty samples. Skipping augmentation.")
         return X, Y, False
 
     try:
         smoter = SVMSMOTE(
-            sampling_strategy={target_class: target_count},
+            sampling_strategy={target_class: total_count},
             random_state=config["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
@@ -340,21 +331,19 @@ def augment_svm_smote_gap_class(
 def augment_borderline_smote_gap_class(
     X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
 ):
-    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
+    _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
-    if not needs_aug:
-        print("No Borderline-SMOTE needed.")
-        return X, Y, False
 
     n_existing = np.sum(Y == target_class)
+    total_count = n_existing + target_count
     if n_existing < 2:
         print("Not enough uncertainty samples. Skipping augmentation.")
         return X, Y, False
 
     try:
         smoter = BorderlineSMOTE(
-            sampling_strategy={target_class: target_count},
+            sampling_strategy={target_class: total_count},
             random_state=config["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
@@ -368,21 +357,19 @@ def augment_borderline_smote_gap_class(
 def augment_adasyn_gap_class(
     X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
 ):
-    needs_aug, target_count, _, _, _ = get_gap_class_target_count(
+    _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
-    if not needs_aug:
-        print("No ADASYN needed.")
-        return X, Y, False
 
     n_existing = np.sum(Y == target_class)
+    total_count = n_existing + target_count
     if n_existing < 2:
         print("Not enough uncertainty samples. Skipping augmentation.")
         return X, Y, False
 
     try:
         adasyn = ADASYN(
-            sampling_strategy={target_class: target_count},
+            sampling_strategy={target_class: total_count},
             random_state=config["random_state"],
         )
         X_aug, Y_aug = adasyn.fit_resample(X, Y)

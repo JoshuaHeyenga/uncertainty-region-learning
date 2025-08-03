@@ -32,12 +32,12 @@ THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/iris_dataset/"
+SYNTH_DIR: str = "results/multi_dataset/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"iris_results_all-methods_{TIMESTAMP}.csv"
+FILE_NAME: str = f"multi_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 MANUAL_FILE_PATH: str = (
-    "results/multi_dataset/multi_synth_results_all-methods_07.27_09.09.csv"
+    "results/multi_dataset/multi_results_all-methods_07.27_11.10.csv"
 )
 
 PRE_CLASSIFIER = None
@@ -96,7 +96,7 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
             )
 
             X_aug, y_aug, was_augmented = augment_data(
-                X_train, y_train_gap, gap_ratio, augment_method
+                X_train, y_train_gap, original_y_train, gap_ratio, augment_method
             )
 
             if not was_augmented:
@@ -107,7 +107,7 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
             )
 
-            y_aug[: len(y_train)] = original_y_train
+            # y_aug[: len(y_train)] = original_y_train
 
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
@@ -141,29 +141,48 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 
 def augment_data(
-    X_train, y_train_with_gap, gap_ratio, augment_method: AugmentationMethod
+    X_train,
+    y_train_with_gap,
+    original_y_train,
+    gap_ratio,
+    augment_method: AugmentationMethod,
 ) -> Tuple[np.ndarray, np.ndarray, bool]:
-    """
-    Applies the selected augmentation method to the gap class to balance it.
-
-    Args:
-        X_train: Training features.
-        y_train_with_gap: Training labels including gap class.
-
-    Returns:
-        Tuple of (X_aug, y_aug): Augmented feature and label arrays.
-    """
-
     augment_fn = augmentation_dispatch.get(augment_method)
     if not augment_fn:
         raise ValueError(f"Unsupported augmentation method: {augment_method.value}")
 
-    X_aug, y_aug, was_augmented = augment_fn(
-        X_train,
-        y_train_with_gap,
-        target_class=FIRST_GAP_CLASS_LABEL,
-        gap_ratio=gap_ratio,
+    X_aug = X_train.copy()
+    y_aug = y_train_with_gap.copy()
+    was_augmented = False
+
+    gap_labels = sorted(
+        [
+            label
+            for label in np.unique(y_train_with_gap)
+            if label >= FIRST_GAP_CLASS_LABEL
+        ]
     )
+
+    for gap_label in gap_labels:
+        # Augmentiere nur diese Partial Gap Klasse
+        X_temp, y_temp, augmented = augment_fn(
+            X_train,
+            y_train_with_gap,
+            target_class=gap_label,
+            gap_ratio=gap_ratio,
+        )
+
+        if augmented:
+            # Nur die neuen Samples herausziehen
+            new_samples = X_temp[len(X_train) :]
+            new_labels = np.full(len(new_samples), FIRST_GAP_CLASS_LABEL)
+
+            X_aug = np.vstack((X_aug, new_samples))
+            y_aug = np.hstack((y_aug, new_labels))
+            was_augmented = True
+
+    # Original-Gap-Samples wiederherstellen
+    y_aug[: len(original_y_train)] = original_y_train
 
     return X_aug, y_aug, was_augmented
 

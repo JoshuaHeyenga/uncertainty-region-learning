@@ -7,71 +7,63 @@ from sklearn.metrics import accuracy_score
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
-from enums import AugmentationMethod, Dataset, PerformanceMetric, PerformanceStage
+from enums import AugmentationMethod, Dataset
 from model import (
     assign_gap_class,
+    augment_adasyn_gap_class,
+    augment_borderline_smote_gap_class,
     augment_oversampling_gap_class,
     augment_smote_gap_class,
     augment_svm_smote_gap_class,
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import (
-    plot_gcg_across_ratios,
-    plot_performance_accross_ratios,
-    plot_std_performance,
-)
+from visualization import plot_gcg, plot_performance_across_thresholds
 
 # === CONFIG ===
 # General Data
 UNCERTAINTY_THRESHOLD: float = CONFIG["uncertainty_threshold"]
 RANDOM_STATES: int = CONFIG["random_states"]
 FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
-METHOD: AugmentationMethod = AugmentationMethod.SMOTE
+NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["synth_thresholds"]
-GAP_RATIOS: float = CONFIG["gap_ratios"]
+THRESHOLDS: float = CONFIG["cancer_thresholds"]
+GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/synth_dataset/"
+SYNTH_DIR: str = "results/cancer_dataset/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"synth-ratio_results_{METHOD.value}_{TIMESTAMP}.csv"
+FILE_NAME: str = f"cancer_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
-
 MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/synth-ratio_results_smote_07.28_11.09.csv"
+    "results/cancer_dataset/cancer_results_all-methods_07.29_10.31.csv"
 )
 
 PRE_CLASSIFIER = None
 
 augmentation_dispatch = {
-    AugmentationMethod.SMOTE: augment_smote_gap_class,
     AugmentationMethod.OVERSAMPLING: augment_oversampling_gap_class,
+    AugmentationMethod.SMOTE: augment_smote_gap_class,
     AugmentationMethod.SVM_SMOTE: augment_svm_smote_gap_class,
+    AugmentationMethod.BORDERLINE_SMOTE: augment_borderline_smote_gap_class,
+    AugmentationMethod.ADASYN: augment_adasyn_gap_class,
 }
 
 
 def main() -> None:
-    for seed in RANDOM_STATES:
-        get_seed_performance(seed=seed)
+    """X_train, X_test, y_train, y_test = prepare_data()
+    classifier = clean_train_classifier(X_train, y_train, 42)
+    count_uncertainty_samples_over_thresholds(
+        classifier=classifier, X=X_train, Y=y_train
+    )"""
 
-    plot_performance_accross_ratios(
-        file_path=FILE_PATH,
-        obs_class=1,
-        n_cols=2,
-        n_rows=2,
-    )
+    for method in augmentation_dispatch:
+        for seed in RANDOM_STATES:
+            get_seed_performance_for_method(seed=seed, augment_method=method)
 
 
-def get_seed_performance(seed: int) -> None:
-    """
-    Args:
-        seed: Chosen seed for the performance measurement.
-
-    Runs the experimental pipeline for the given seed and saves
-    the results to a csv.
-    """
+def get_seed_performance_for_method(seed: int, augment_method: AugmentationMethod):
     for threshold in THRESHOLDS:
         for gap_ratio in GAP_RATIOS:
             print(
@@ -80,12 +72,7 @@ def get_seed_performance(seed: int) -> None:
 
             # == Get Base Performance ==
             X_train, X_test, y_train, y_test = prepare_data()
-
             classifier = clean_train_classifier(X_train, y_train, seed)
-
-            y_pred = classifier.predict(X_test)
-            acc = accuracy_score(y_test, y_pred)
-            print(f"[PRE-GAP] Accuracy: {acc:.4f}")
 
             global PRE_CLASSIFIER
             PRE_CLASSIFIER = classifier
@@ -95,7 +82,7 @@ def get_seed_performance(seed: int) -> None:
                 X_test=X_test,
                 Y_test=y_test,
                 file_path=FILE_PATH,
-                method=METHOD.value,
+                method=augment_method.value,
                 stage="pre",
                 seed=seed,
                 threshold=threshold,
@@ -103,7 +90,6 @@ def get_seed_performance(seed: int) -> None:
                 pre_classifier=None,
             )
 
-            # Save original labels
             original_y_train = y_train.copy()
 
             # == Get Gap-Class Performance ==
@@ -112,15 +98,22 @@ def get_seed_performance(seed: int) -> None:
                 X=X_train,
                 Y=y_train,
                 threshold=threshold,
+                class_count=NUMBER_OF_CLASSES,
             )
 
-            X_aug, y_aug, was_augmented = augment_data(X_train, y_train_gap, gap_ratio)
+            X_aug, y_aug, was_augmented = augment_data(
+                X_train, y_train_gap, original_y_train, gap_ratio, augment_method
+            )
 
             if not was_augmented:
                 print("Skipping retraining and logging — no augmentation needed.")
                 continue
 
-            y_aug[: len(y_train)] = original_y_train  # needs further testing
+            y_aug = np.where(
+                y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
+            )
+
+            y_aug[: len(y_train)] = original_y_train
 
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
@@ -129,7 +122,7 @@ def get_seed_performance(seed: int) -> None:
                 X_test=X_test,
                 Y_test=y_test,
                 file_path=FILE_PATH,
-                method=METHOD.value,
+                method=augment_method.value,
                 stage="post",
                 seed=seed,
                 threshold=threshold,
@@ -147,27 +140,22 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(mode=Dataset.BLOBS)
+    X, y = generate_dataset(mode=Dataset.CANCER)
+    global NUMBER_OF_CLASSES
+    NUMBER_OF_CLASSES = len(np.unique(y))
     return split_dataset(X, y)
 
 
 def augment_data(
-    X_train, y_train_with_gap, gap_ratio
+    X_train,
+    y_train_with_gap,
+    original_y_train,
+    gap_ratio,
+    augment_method: AugmentationMethod,
 ) -> Tuple[np.ndarray, np.ndarray, bool]:
-    """
-    Applies the selected augmentation method to the gap class to balance it.
-
-    Args:
-        X_train: Training features.
-        y_train_with_gap: Training labels including gap class.
-
-    Returns:
-        Tuple of (X_aug, y_aug): Augmented feature and label arrays.
-    """
-
-    augment_fn = augmentation_dispatch.get(METHOD)
+    augment_fn = augmentation_dispatch.get(augment_method)
     if not augment_fn:
-        raise ValueError(f"Unsupported augmentation method: {METHOD}")
+        raise ValueError(f"Unsupported augmentation method: {augment_method.value}")
 
     X_aug, y_aug, was_augmented = augment_fn(
         X_train,
@@ -179,20 +167,35 @@ def augment_data(
     return X_aug, y_aug, was_augmented
 
 
-def evaluate_on_original_training_data(
-    classifier, X_train_orig, y_train_with_gap, X_aug, y_aug
-):
-    # Identify indices of synthetic samples
-    orig_count = len(X_train_orig)
-    X_orig_only = X_aug[:orig_count]
-    y_orig_only = y_aug[:orig_count]
+def count_uncertainty_samples_over_thresholds(classifier, X, Y, gap_label=99):
+    threshold_range = np.arange(0.01, 0.51, 0.01)
+    proba = classifier.predict_proba(X)
+    confidence = np.max(proba, axis=1)
 
-    y_pred_orig = classifier.predict(X_orig_only)
-    acc_orig = accuracy_score(y_orig_only, y_pred_orig)
-    print(f"[POST GAP (ON ORIGINAL TEST DATA)] Accuracy: {acc_orig:.4f}")
+    threshold_to_count = {}
+    for threshold in threshold_range:
+        uncertain_mask = confidence < (1 - threshold)
+        count = np.sum(uncertain_mask)
+        threshold_to_count[round(threshold, 2)] = count
+        print(f"Threshold: {round(threshold, 2)}, Count: {count}")
 
 
 if __name__ == "__main__":
-    plot_std_performance(
-        MANUAL_FILE_PATH, 0, PerformanceMetric.ACCURACY.value, "post", True
+    """plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
     )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
+    )"""
+
+    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05)
+    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.50)

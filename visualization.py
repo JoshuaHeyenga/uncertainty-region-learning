@@ -210,7 +210,6 @@ def plot_std_performance(
         mean.loc[mean.index] + std.loc[mean.index],
         color="blue",  # make this dependent on metric
         alpha=0.2,
-        label="± 1 Std. Dev.",
     )
 
     if comp:
@@ -234,7 +233,6 @@ def plot_std_performance(
             base_mean.loc[base_mean.index] + std.loc[base_mean.index],
             color="red",  # make this dependent on metric
             alpha=0.2,
-            label="± 1 Std. Dev.",  # how did i get +-
         )
 
     ax.set_xlabel("Gap Ratio", fontsize=16)
@@ -242,7 +240,7 @@ def plot_std_performance(
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.tick_params(axis="both", labelsize=14)
     ax.grid(True)
-    if obs_class == 0 and metric == "accuracy":
+    if obs_class == 0:
         ax.legend(loc="lower right", fontsize=14)
 
     plt.tight_layout()
@@ -314,14 +312,15 @@ def plot_performance_across_thresholds(
     handles, labels = ax.get_legend_handles_labels()
     handles.insert(0, pre_legend_proxy)
     labels.insert(0, "Pre values")
-    ax.legend(
-        handles,
-        labels,
-        title="Metric & Stage",
-        loc="lower left",
-        fontsize=13,
-        title_fontsize=14,
-    )
+    if gap_ratio == 0.01:
+        ax.legend(
+            handles,
+            labels,
+            title="Metric & Stage",
+            loc="lower right",
+            fontsize=13,
+            title_fontsize=14,
+        )
 
     ax.tick_params(axis="both", labelsize=13)
 

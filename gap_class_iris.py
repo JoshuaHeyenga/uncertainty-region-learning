@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Tuple
 
 import numpy as np
-from sklearn.metrics import accuracy_score
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
