@@ -6,7 +6,6 @@ from matplotlib.colors import ListedColormap
 from matplotlib.lines import Line2D
 
 from config import CONFIG
-from enums import AugmentationMethod
 
 # === CONFIG ===
 
@@ -92,94 +91,69 @@ def plot_results_with_decision_boundary(
     ax.legend()
 
 
-def plot_performance_accross_ratios(
-    file_path: str, obs_class: int, n_cols: int, n_rows: int
-):
+def plot_performance_across_ratios(file_path: str, obs_class: int):
     total_df = pd.read_csv(file_path)
 
-    # == Data Setup ==
-    # Metrics
-    metrics: str = [
-        "precision",
-        "recall",
-        "f1",
-        "support",
-        "accuracy",
-    ]  # could be even more as the filter is further down
-    mean_df = total_df.groupby(
-        ["method", "stage", "class", "threshold", "gap_ratio"], as_index=False
-    )[metrics].mean()
+    # Filter for the observed class
+    df = total_df[total_df["class"] == obs_class]
 
-    try:
-        df = mean_df[(mean_df["class"] == obs_class)]
+    # Metrics to include
+    metrics = ["precision", "recall", "f1", "accuracy"]
 
-    except Exception as e:
-        print(f"Error in DataFrame filtering: {e}")
-
-    CLEAN_THRESHOLDS = sorted(df["threshold"].dropna().unique())
-
-    # == Plot Settings ==
-    fig, axes = plt.subplots(
-        nrows=n_rows,
-        ncols=n_cols,
-        figsize=(5 * n_cols, 3 * n_rows),
-        sharey=True,
-        constrained_layout=True,
+    # Group: average across seeds AND thresholds
+    grouped = (
+        df.groupby(["stage", "gap_ratio"])[metrics]
+        .mean()
+        .reset_index()
+        .sort_values("gap_ratio")
     )
 
-    axes = axes.flatten()
+    # Separate pre and post stages
+    pre_df = grouped[grouped["stage"] == "pre"]
+    post_df = grouped[grouped["stage"] == "post"]
 
-    for ax, threshold in zip(axes, CLEAN_THRESHOLDS):
-        sub_df = df[df["threshold"] == threshold]
+    # === Plotting ===
+    fig, ax = plt.subplots(figsize=(7, 4))
 
-        pre_df = mean_df[
-            (mean_df["threshold"] == threshold)
-            & (mean_df["class"] == obs_class)
-            & (mean_df["stage"] == "pre")
-        ]
-
-        pre_mean_df = pre_df.groupby("gap_ratio").mean(numeric_only=True)
-
-        post_mean_df = (
-            sub_df[sub_df["stage"] == "post"]
-            .groupby("gap_ratio")
-            .mean(numeric_only=True)
+    for metric in metrics:
+        # Post = solid line
+        ax.plot(
+            post_df["gap_ratio"],
+            post_df[metric],
+            label=f"Post {metric.capitalize()}",
+            marker="o",
+            color=COLORS[metric],
         )
 
-        # == Graph Visualization ==
-        for metric in ["precision", "recall", "f1", "accuracy"]:
-            ax.plot(
-                post_mean_df.index,
-                post_mean_df[metric],
-                marker="o",
-                label=f"Post {metric.capitalize()}",
-                color=COLORS[metric],
-            )
-            ax.axhline(
-                y=pre_mean_df[metric].mean(),
-                linestyle="--",
-                color=COLORS[metric],
-            )
+        # Pre = horizontal dashed line (averaged over thresholds and ratios)
+        ax.axhline(
+            y=pre_df[metric].mean(),  # mean over all gap ratios
+            linestyle="--",
+            color=COLORS[metric],
+        )
 
-            ax.set_title(f"Threshold = {threshold}")
-            ax.set_xlabel("Gap Ratio")
-            ax.grid(True)
-            if ax == axes[0]:
-                ax.set_ylabel("Score")
+    # Legend setup
+    pre_legend_proxy = Line2D(
+        [0], [0], linestyle="--", color="gray", label="Pre values"
+    )
+    handles, labels = ax.get_legend_handles_labels()
+    handles.insert(0, pre_legend_proxy)
+    labels.insert(0, "Pre values")
+    if obs_class == 0:
+        ax.legend(
+            handles,
+            labels,
+            title="Metric & Stage",
+            loc="lower right",
+            fontsize=13,
+            title_fontsize=14,
+        )
 
-                pre_legend_proxy = Line2D(
-                    [0], [0], linestyle="--", color="gray", label="Pre values"
-                )
-                handles, labels = ax.get_legend_handles_labels()
-                handles.insert(0, pre_legend_proxy)
-                labels.insert(0, "Pre values")
-                ax.legend(
-                    handles,
-                    labels,
-                    title="Metric & Stage",
-                    loc="lower right",
-                )
-
+    ax.set_xlabel("Gap Ratio", fontsize=16)
+    ax.set_ylabel("Score", fontsize=16)
+    ax.grid(True)
+    ax.tick_params(axis="both", labelsize=13)
+    plt.tight_layout()
     plt.show()
 
 
@@ -369,32 +343,42 @@ def plot_gcg(file_path: str, augment_method: str, gap_ratio: float):
 def plot_gcg_across_ratios(file_path: str, augment_method: str):
     total_df = pd.read_csv(file_path)
 
+    # Filter for the relevant method and post-augmentation stage
     gcg_df = total_df[
         (total_df["method"] == augment_method) & (total_df["stage"] == "post")
     ]
 
-    grouped = (
-        gcg_df.groupby("gap_ratio")["gcg"].mean().reset_index().sort_values("gap_ratio")
-    )
+    # Define the specific gap ratios to plot
+    target_ratios = [0.01, 0.05, 0.1, 0.25, 0.5]
 
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(
-        grouped["gap_ratio"],
-        grouped["gcg"],
-        marker="o",
-        color="darkgreen",
-        label="Avg GCG Score",
-    )
 
-    ax.set_xlabel("Gap Ratio", fontsize=16)
+    for ratio in target_ratios:
+        ratio_df = gcg_df[gcg_df["gap_ratio"] == ratio]
+        grouped = (
+            ratio_df.groupby("threshold")["gcg"]
+            .mean()
+            .reset_index()
+            .sort_values("threshold")
+        )
+
+        ax.plot(
+            grouped["threshold"],
+            grouped["gcg"],
+            marker="o",
+            label=f"Gap Ratio {ratio:.2f}",
+        )
+
+    ax.set_xlabel("Threshold", fontsize=16)
     ax.set_ylabel("GCG", fontsize=16)
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.grid(True)
     ax.legend(
         loc="lower right",
-        fontsize=13,
-        title_fontsize=14,
+        fontsize=12,
+        title="Gap Ratio",
+        title_fontsize=13,
     )
     ax.tick_params(axis="both", labelsize=13)
 

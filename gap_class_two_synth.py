@@ -18,7 +18,7 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_gcg, plot_performance_across_thresholds
+from visualization import plot_gcg_across_ratios, plot_performance_across_thresholds
 
 # === CONFIG ===
 # General Data
@@ -32,13 +32,11 @@ THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/synth_dataset/"
+SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"two_synth_results_all-methods_{TIMESTAMP}.csv"
+FILE_NAME: str = f"ts_results_all-methods_{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
-MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/two_synth_results_all-methods_07.28_16.06.csv"
-)
+MANUAL_FILE_PATH: str = "results/final_results/ts_results_all-methods_08.04_17.38.csv"
 
 PRE_CLASSIFIER = None
 
@@ -95,6 +93,14 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 class_count=NUMBER_OF_CLASSES,
             )
 
+            gap_label = CONFIG["gap_class_label"]
+            num_gap_assigned = np.sum(y_train_gap == gap_label)
+            print("Number of samples assigned to gap class:", num_gap_assigned)
+
+            if num_gap_assigned == 0:
+                print("Empty gap class, skipping augmentation.")
+                continue
+
             X_aug, y_aug, was_augmented = augment_data(
                 X_train, y_train_gap, gap_ratio, augment_method
             )
@@ -107,7 +113,7 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
             )
 
-            y_aug[: len(y_train)] = original_y_train
+            y_aug[: len(original_y_train)] = original_y_train  # was y_train
 
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
@@ -217,5 +223,20 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5)
+    main()
+    """plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.01
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.05
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.1
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.25
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.5
+    )
+    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value)"""

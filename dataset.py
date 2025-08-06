@@ -1,8 +1,8 @@
 import pandas as pd
 import yaml
-from sklearn.datasets import make_blobs, make_classification
+from sklearn.datasets import make_blobs
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 from enums import Dataset
 
@@ -12,14 +12,14 @@ with open("config.yaml", "r") as f:
 
 def generate_dataset(mode: Dataset) -> tuple:
     """
-    Generates a synthetic dataset using Gaussian blobs.
+    Generates and returns feature and label data for one of the supported datasets.
 
-    The number of samples, centers (clusters), standard deviation, and random state
-    are defined in the external configuration file `config.yaml`.
+    Depending on the `mode`, the dataset is generated synthetically or loaded from a file.
 
     Returns:
-        X (ndarray): Generated feature matrix of shape (n_samples, n_features).
-        Y (ndarray): Corresponding label vector of shape (n_samples,).
+        tuple:
+            - X (ndarray): Feature matrix of shape (n_samples, n_features).
+            - Y (ndarray): Label vector of shape (n_samples,).
     """
 
     if mode == Dataset.BLOBS:
@@ -40,37 +40,13 @@ def generate_dataset(mode: Dataset) -> tuple:
         )
         return X, Y
 
-    if mode == Dataset.IRIS:
-        df = pd.read_csv("data/Iris.csv")
-
-        # Drop Id column if exists
-        df = df.drop(columns=["Id"], errors="ignore")
-        # df = df[df["Species"].isin(["Iris-setosa", "Iris-versicolor"])]
-
-        # Encode species as integer labels (0, 1, 2)
-        label_encoder = LabelEncoder()
-        Y = label_encoder.fit_transform(df["Species"])
-        X = df.drop(columns=["Species"]).values
-
-        # Optional: normalize features
-        X = StandardScaler().fit_transform(X)
-
-        return X, Y
-
     if mode == Dataset.WINE:
         df = pd.read_csv("data/WineQT.csv")
 
-        # Drop any missing values just in case
         df = df.dropna()
-
-        # if binary:
-        # Binary classification: Good (6 or higher) vs. Bad
-        #    df["quality"] = (df["quality"] >= 6).astype(int)
-
         Y = df["quality"].values
-        X = df.drop(columns=["quality"]).values
+        X = df.drop(columns=["quality", "Id"]).values
 
-        # Normalize features
         X = StandardScaler().fit_transform(X)
 
         return X, Y
@@ -82,6 +58,7 @@ def generate_dataset(mode: Dataset) -> tuple:
         df.columns = columns
 
         df = df.drop(columns=["ID"])
+        df = df.dropna()
 
         df["diagnosis"] = df["diagnosis"].map({"M": 1, "B": 0})
 
@@ -94,7 +71,7 @@ def generate_dataset(mode: Dataset) -> tuple:
         return X, Y
 
 
-def split_dataset(X, Y, test_size=0.2):
+def split_dataset(X, Y, test_size=0.5):
     """
     Splits a dataset into training and test subsets.
 
@@ -103,7 +80,7 @@ def split_dataset(X, Y, test_size=0.2):
     Args:
         X (ndarray): Full feature matrix of shape (n_samples, n_features).
         Y (ndarray): Full label vector of shape (n_samples,).
-        test_size (float): Fraction of the dataset to use for the test set (default: 0.2).
+        test_size (float): Fraction of the dataset to use for the test set (default: 0.5).
 
     Returns:
         tuple:

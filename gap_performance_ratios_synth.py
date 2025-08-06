@@ -18,7 +18,7 @@ from model import (
 )
 from visualization import (
     plot_gcg_across_ratios,
-    plot_performance_accross_ratios,
+    plot_performance_across_ratios,
     plot_std_performance,
 )
 
@@ -34,34 +34,23 @@ THRESHOLDS: float = CONFIG["synth_thresholds"]
 GAP_RATIOS: float = CONFIG["gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/synth_dataset/"
+SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"synth-ratio_results_{METHOD.value}_{TIMESTAMP}.csv"
+FILE_NAME: str = f"ts_ratio_results__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
-MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/synth-ratio_results_smote_07.28_11.09.csv"
-)
+MANUAL_FILE_PATH: str = "results/final_results/ts_ratio_results__08.03_10.00.csv"
 
 PRE_CLASSIFIER = None
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
-    AugmentationMethod.OVERSAMPLING: augment_oversampling_gap_class,
-    AugmentationMethod.SVM_SMOTE: augment_svm_smote_gap_class,
 }
 
 
 def main() -> None:
     for seed in RANDOM_STATES:
         get_seed_performance(seed=seed)
-
-    plot_performance_accross_ratios(
-        file_path=FILE_PATH,
-        obs_class=1,
-        n_cols=2,
-        n_rows=2,
-    )
 
 
 def get_seed_performance(seed: int) -> None:
@@ -194,5 +183,30 @@ def evaluate_on_original_training_data(
 
 if __name__ == "__main__":
     plot_std_performance(
-        MANUAL_FILE_PATH, 0, PerformanceMetric.ACCURACY.value, "post", True
+        MANUAL_FILE_PATH,
+        0,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        1,
+        PerformanceMetric.ACCURACY.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        0,
+        PerformanceMetric.F1SCORE.value,
+        PerformanceStage.POST.value,
+        True,
+    )
+    plot_std_performance(
+        MANUAL_FILE_PATH,
+        1,
+        PerformanceMetric.F1SCORE.value,
+        PerformanceStage.POST.value,
+        True,
     )

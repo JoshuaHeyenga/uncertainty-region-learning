@@ -18,7 +18,11 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_gcg, plot_performance_across_thresholds
+from visualization import (
+    plot_gcg,
+    plot_gcg_across_ratios,
+    plot_performance_across_thresholds,
+)
 
 # === CONFIG ===
 # General Data
@@ -28,16 +32,16 @@ FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
 NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["cancer_thresholds"]
+THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/cancer_dataset/"
+SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"cancer_results_all-methods_{TIMESTAMP}.csv"
+FILE_NAME: str = f"cancer_results_all-methods__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 MANUAL_FILE_PATH: str = (
-    "results/cancer_dataset/cancer_results_all-methods_07.29_10.31.csv"
+    "results/final_results/cancer_results_all-methods__08.04_17.24.csv"
 )
 
 PRE_CLASSIFIER = None
@@ -72,6 +76,8 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
 
             # == Get Base Performance ==
             X_train, X_test, y_train, y_test = prepare_data()
+
+            print("Y_train amount:", len(y_train))
             classifier = clean_train_classifier(X_train, y_train, seed)
 
             global PRE_CLASSIFIER
@@ -101,6 +107,14 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 class_count=NUMBER_OF_CLASSES,
             )
 
+            gap_label = CONFIG["gap_class_label"]
+            num_gap_assigned = np.sum(y_train_gap == gap_label)
+            print("Number of samples assigned to gap class:", num_gap_assigned)
+
+            if num_gap_assigned == 0:
+                print("Empty gap class, skipping augmentation.")
+                continue
+
             X_aug, y_aug, was_augmented = augment_data(
                 X_train, y_train_gap, original_y_train, gap_ratio, augment_method
             )
@@ -113,7 +127,7 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
             )
 
-            y_aug[: len(y_train)] = original_y_train
+            y_aug[: len(original_y_train)] = original_y_train
 
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
@@ -196,6 +210,4 @@ if __name__ == "__main__":
     plot_performance_across_thresholds(
         MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
     )"""
-
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05)
-    plot_gcg(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.50)
+    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)

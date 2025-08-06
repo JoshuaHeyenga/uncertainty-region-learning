@@ -2,10 +2,6 @@ from enum import Enum
 
 
 class AugmentationMethod(Enum):
-    """
-    Enum for different augmentation methods.
-    """
-
     SMOTE = "smote"
     OVERSAMPLING = "oversampling"
     SVM_SMOTE = "svm_smote"
@@ -14,10 +10,6 @@ class AugmentationMethod(Enum):
 
 
 class PerformanceMetric(Enum):
-    """
-    Enum for the different performance metrics.
-    """
-
     PRECISION = "precision"
     ACCURACY = "accuracy"
     F1SCORE = "f1"
@@ -30,12 +22,7 @@ class PerformanceStage(Enum):
 
 
 class Dataset(Enum):
-    """
-    Enum for different datasets used in the experiments.
-    """
-
     BLOBS = "blobs"
     MULTI_BLOBS = "multi_blobs"
-    IRIS = "iris"
     WINE = "wine"
     CANCER = "cancer"

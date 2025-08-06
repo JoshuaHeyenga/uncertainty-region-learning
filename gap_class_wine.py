@@ -32,13 +32,13 @@ FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
 NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
+THRESHOLDS: float = CONFIG["wine_thresholds"]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
 SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"ms_results_all-methods__{TIMESTAMP}.csv"
+FILE_NAME: str = f"wine_results_all-methods__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 MANUAL_FILE_PATH: str = "results/final_results/ms_results_all-methods__08.03_17.49.csv"
 
@@ -54,6 +54,12 @@ augmentation_dispatch = {
 
 
 def main() -> None:
+    """X_train, X_test, y_train, y_test = prepare_data()
+    classifier = clean_train_classifier(X_train, y_train, 42)
+    count_uncertainty_samples_over_thresholds(
+        classifier=classifier, X=X_train, Y=y_train
+    )"""
+
     for method in augmentation_dispatch:
         for seed in RANDOM_STATES:
             get_seed_performance_for_method(seed=seed, augment_method=method)
@@ -97,9 +103,12 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 class_count=NUMBER_OF_CLASSES,
             )
 
-            gap_label = CONFIG["gap_class_label"]
-            num_gap_assigned = np.sum(y_train_gap == gap_label)
-            print("Number of samples assigned to gap class:", num_gap_assigned)
+            gap_labels = [
+                label
+                for label in np.unique(y_train_gap)
+                if label >= FIRST_GAP_CLASS_LABEL
+            ]
+            num_gap_assigned = np.sum(np.isin(y_train_gap, gap_labels))
 
             if num_gap_assigned == 0:
                 print("Empty gap class, skipping augmentation.")
@@ -144,7 +153,7 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         (X_train, X_test, y_train, y_test)
     """
 
-    X, y = generate_dataset(mode=Dataset.MULTI_BLOBS)
+    X, y = generate_dataset(mode=Dataset.WINE)
     global NUMBER_OF_CLASSES
     NUMBER_OF_CLASSES = len(np.unique(y))
     return split_dataset(X, y)
@@ -173,7 +182,16 @@ def augment_data(
         ]
     )
 
+    print(f"[augment_data] Augmentation method: {augment_method}")
+    print(f"[augment_data] Gap labels to augment: {gap_labels}")
+
     for gap_label in gap_labels:
+        print(f"[augment_data] Attempting to augment class: {gap_label}")
+        original_count = np.sum(y_train_with_gap == gap_label)
+        print(
+            f"[augment_data] Number of original gap samples for {gap_label}: {original_count}"
+        )
+
         # Augmentiere nur diese Partial Gap Klasse
         X_temp, y_temp, augmented = augment_fn(
             X_train,
@@ -197,21 +215,18 @@ def augment_data(
     return X_aug, y_aug, was_augmented
 
 
+def count_uncertainty_samples_over_thresholds(classifier, X, Y, gap_label=99):
+    threshold_range = np.arange(0.01, 1.01, 0.01)
+    proba = classifier.predict_proba(X)
+    confidence = np.max(proba, axis=1)
+
+    threshold_to_count = {}
+    for threshold in threshold_range:
+        uncertain_mask = confidence < (1 - threshold)
+        count = np.sum(uncertain_mask)
+        threshold_to_count[round(threshold, 2)] = count
+        print(f"Threshold: {round(threshold, 2)}, Count: {count}")
+
+
 if __name__ == "__main__":
     main()
-    """plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
-    )
-    plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
-    )
-    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)"""

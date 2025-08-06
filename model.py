@@ -1,5 +1,7 @@
+from collections import Counter
+
 import numpy as np
-import yaml
+import pandas as pd
 from imblearn.over_sampling import ADASYN, SMOTE, SVMSMOTE, BorderlineSMOTE
 from sklearn.metrics import (
     accuracy_score,
@@ -10,9 +12,6 @@ from sklearn.utils import resample
 
 from config import CONFIG
 from logger import log_metrics_to_csv
-
-with open("config.yaml", "r") as f:
-    config = yaml.safe_load(f)
 
 
 def clean_train_classifier(X_train, Y_train, seed):
@@ -29,10 +28,11 @@ def clean_train_classifier(X_train, Y_train, seed):
 
     classifier = MLPClassifier(
         hidden_layer_sizes=(50,),
-        activation="relu",  # tanh, logistic, relu
+        activation="relu",
         solver="adam",
         max_iter=10000,
         random_state=seed,
+        early_stopping=True,
     )
     classifier.fit(X_train, Y_train)
     return classifier
@@ -70,7 +70,6 @@ def evaluate_and_log_model(
             threshold=threshold,
             class_count=len(np.unique(Y_test)),
         )
-        print(f"Gap Clarity Gain: {gap_clarity_gain:.4f}")
     else:
         gap_clarity_gain = None
 
@@ -98,13 +97,12 @@ def sanitize_predictions(y_pred, valid_labels):
     """
     Replace any predictions outside of valid labels with the most frequent label.
     """
-    from collections import Counter
 
     majority_class = Counter(valid_labels).most_common(1)[0][0]
     return np.array([y if y in valid_labels else majority_class for y in y_pred])
 
 
-def compute_gap_clarity_gain(
+def compute_gap_clarity_gain(  # needs to be updated
     pre_classifier,
     post_classifier,
     X_test,
@@ -123,7 +121,7 @@ def compute_gap_clarity_gain(
     boundary_mask = conf_before < (1 - threshold)
 
     if np.sum(boundary_mask) == 0:
-        return 0.0
+        return None
 
     avg_conf_before = np.median(conf_before[boundary_mask])
     avg_conf_after = np.median(conf_after[boundary_mask])
@@ -133,39 +131,25 @@ def compute_gap_clarity_gain(
 
 
 def assign_gap_class(
-    classifier, X, Y, threshold=config["uncertainty_threshold"], class_count: int = 2
+    classifier, X, Y, threshold=CONFIG["uncertainty_threshold"], class_count: int = 2
 ):
-    """
-    Assigns class label 2 (gap class) to data points with low classification confidence.
-
-    This is based on the maximum predicted class probability being below a threshold,
-    defined in the config file under 'uncertainty_threshold'.
-
-    Args:
-        classifier (MLPClassifier): Trained classifier used to compute prediction probabilities.
-        X (ndarray): Feature matrix for all data points, shape (n_samples, n_features).
-        Y (ndarray): Original label vector, shape (n_samples,).
-
-    Returns:
-        tuple:
-            - ndarray: Updated label vector with uncertain samples relabeled to class 2.
-            - ndarray: Boolean mask indicating which points were labeled as uncertain.
-    """
-
     if threshold is None:
         threshold = threshold
 
     Y_extended = np.copy(Y)
+    print("Classes in Y pre-augmentation:", np.unique(Y_extended))
 
     if class_count <= 2:
+        print("Assigning gap class for binary classification.")
         proba = classifier.predict_proba(X)
         confidence = np.max(proba, axis=1)
 
         uncertain_mask = confidence < (1 - threshold)
-        Y_extended[uncertain_mask] = config["gap_class_label"]
-
+        Y_extended[uncertain_mask] = CONFIG["gap_class_label"]
         return Y_extended, uncertain_mask
     else:
+        print("Assigning gap class for multi-class classification.")
+
         gap_class_label = CONFIG["first_gap_class_label"]
         partial_gap_masks = {}
         proba_all = classifier.predict_proba(X)
@@ -183,30 +167,18 @@ def assign_gap_class(
 
             partial_gap_masks[cls] = uncertain_mask
             Y_extended[uncertain_mask] = gap_class_label
+            print(
+                f"Assigned gap label {gap_class_label} for class {cls} — {np.sum(uncertain_mask)} samples."
+            )
+            print("Classes in Y post-augmentation (in loop):", np.unique(Y_extended))
             gap_class_label += 1
 
         return Y_extended, partial_gap_masks
 
 
 def augment_oversampling_gap_class(
-    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+    X, Y, target_class=CONFIG["gap_class_label"], gap_ratio=CONFIG["gap_ratio"]
 ):
-    """
-    Augments the dataset by oversampling the gap class (label 2) using basic oversampling.
-
-    The gap class is duplicated to reach double its original count. If the current number
-    of gap-class samples already meets or exceeds the target, no augmentation is performed.
-
-    Args:
-        X (ndarray): The feature matrix including original samples, shape (n_samples, n_features).
-        Y (ndarray): The label vector with gap class assignments, shape (n_samples,).
-        target_class (int, optional): The class to oversample. Default is 2.
-
-    Returns:
-        tuple:
-            - ndarray: Augmented feature matrix with new synthetic gap samples.
-            - ndarray: Corresponding label vector including labels for new samples.
-    """
     _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
@@ -231,7 +203,7 @@ def augment_oversampling_gap_class(
         Y_target,
         replace=True,
         n_samples=target_count,  # originally n_to_generate
-        random_state=config["random_state"],
+        random_state=CONFIG["random_state"],
     )
 
     # Concatenate original and new samples
@@ -242,25 +214,8 @@ def augment_oversampling_gap_class(
 
 
 def augment_smote_gap_class(
-    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+    X, Y, target_class=CONFIG["gap_class_label"], gap_ratio=CONFIG["gap_ratio"]
 ):
-    """
-    Augments the dataset by synthetically oversampling the gap class (label 2) using basic SMOTE.
-
-    The gap class is duplicated to reach double its original count. If the current number
-    of gap-class samples already meets or exceeds the target, no augmentation is performed.
-
-    Args:
-        X (ndarray): The feature matrix including original samples, shape (n_samples, n_features).
-        Y (ndarray): The label vector with gap class assignments, shape (n_samples,).
-        target_class (int, optional): The class to oversample. Default is 2.
-
-    Returns:
-        tuple:
-            - ndarray: Augmented feature matrix with new synthetic gap samples.
-            - ndarray: Corresponding label vector including labels for new samples.
-    """
-
     _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
@@ -274,7 +229,7 @@ def augment_smote_gap_class(
     try:
         smoter = SMOTE(
             sampling_strategy={target_class: total_count},
-            random_state=config["random_state"],
+            random_state=CONFIG["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
 
@@ -286,25 +241,8 @@ def augment_smote_gap_class(
 
 
 def augment_svm_smote_gap_class(
-    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+    X, Y, target_class=CONFIG["gap_class_label"], gap_ratio=CONFIG["gap_ratio"]
 ):
-    """
-    Augments the dataset by synthetically oversampling the gap class (label 2)
-    using SVM-SMOTE from imbalanced-learn.
-
-    SVMSMOTE performs SMOTE on the support vectors near the decision boundary
-    of an SVM trained on the minority class.
-
-    Args:
-        X (ndarray): The feature matrix including original samples, shape (n_samples, n_features).
-        Y (ndarray): The label vector with gap class assignments, shape (n_samples,).
-        target_class (int, optional): The class to oversample. Default is 2.
-
-    Returns:
-        tuple:
-            - ndarray: Augmented feature matrix with new synthetic samples.
-            - ndarray: Corresponding label vector including labels for new samples.
-    """
     _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
     )
@@ -318,7 +256,7 @@ def augment_svm_smote_gap_class(
     try:
         smoter = SVMSMOTE(
             sampling_strategy={target_class: total_count},
-            random_state=config["random_state"],
+            random_state=CONFIG["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
@@ -329,7 +267,7 @@ def augment_svm_smote_gap_class(
 
 
 def augment_borderline_smote_gap_class(
-    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+    X, Y, target_class=CONFIG["gap_class_label"], gap_ratio=CONFIG["gap_ratio"]
 ):
     _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
@@ -344,7 +282,7 @@ def augment_borderline_smote_gap_class(
     try:
         smoter = BorderlineSMOTE(
             sampling_strategy={target_class: total_count},
-            random_state=config["random_state"],
+            random_state=CONFIG["random_state"],
         )
         X_aug, Y_aug = smoter.fit_resample(X, Y)
     except ValueError as e:
@@ -355,7 +293,7 @@ def augment_borderline_smote_gap_class(
 
 
 def augment_adasyn_gap_class(
-    X, Y, target_class=config["gap_class_label"], gap_ratio=config["gap_ratio"]
+    X, Y, target_class=CONFIG["gap_class_label"], gap_ratio=CONFIG["gap_ratio"]
 ):
     _, target_count, _, _, _ = get_gap_class_target_count(
         Y, target_class, ratio=gap_ratio
@@ -370,7 +308,7 @@ def augment_adasyn_gap_class(
     try:
         adasyn = ADASYN(
             sampling_strategy={target_class: total_count},
-            random_state=config["random_state"],
+            random_state=CONFIG["random_state"],
         )
         X_aug, Y_aug = adasyn.fit_resample(X, Y)
     except ValueError as e:
@@ -381,21 +319,8 @@ def augment_adasyn_gap_class(
 
 
 def get_gap_class_target_count(
-    Y, target_class=config["gap_class_label"], ratio=config["gap_ratio"]
+    Y, target_class=CONFIG["gap_class_label"], ratio=CONFIG["gap_ratio"]
 ):
-    """
-    Computes the target count for the gap class (label 2) and returns
-    whether augmentation is needed based on the current distribution.
-
-    Args:
-        Y (ndarray): Label vector.
-        target_class (int): The label for the gap class (default: 2).
-
-    Returns:
-        tuple:
-            - bool: Whether augmentation is needed.
-            - int: Target number of samples for the gap class.
-    """
     class_counts = {
         label: np.sum(Y == label) for label in np.unique(Y) if label != target_class
     }

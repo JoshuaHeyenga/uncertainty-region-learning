@@ -15,7 +15,7 @@ from model import (
     clean_train_classifier,
     evaluate_and_log_model,
 )
-from visualization import plot_performance_accross_ratios, plot_std_performance
+from visualization import plot_performance_across_ratios, plot_std_performance
 
 # === CONFIG ===
 # General Data
@@ -30,21 +30,17 @@ THRESHOLDS: float = CONFIG["synth_thresholds"]
 GAP_RATIOS: float = CONFIG["gap_ratios"]
 
 # Logging
-SYNTH_DIR: str = "results/synth_dataset/"
+SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
-FILE_NAME: str = f"multi-ratio_results_{METHOD.value}_{TIMESTAMP}.csv"
+FILE_NAME: str = f"ms_ratio_results__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
 PRE_CLASSIFIER = None
 
-MANUAL_FILE_PATH: str = (
-    "results/synth_dataset/multi-ratio_results_smote_07.28_15.23.csv"
-)
+MANUAL_FILE_PATH: str = "results/final_results/ms_ratio_results__08.03_11.04.csv"
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
-    AugmentationMethod.OVERSAMPLING: augment_oversampling_gap_class,
-    AugmentationMethod.SVM_SMOTE: augment_svm_smote_gap_class,
 }
 
 
@@ -52,12 +48,7 @@ def main() -> None:
     for seed in RANDOM_STATES:
         get_seed_performance(seed=seed)
 
-    plot_performance_accross_ratios(
-        file_path=FILE_PATH,
-        obs_class=1,
-        n_cols=2,
-        n_rows=2,
-    )
+    print("=== Performance Evaluation Completed ===")
 
 
 def get_seed_performance(seed: int) -> None:
@@ -187,10 +178,7 @@ def augment_data(
 
 
 if __name__ == "__main__":
-    plot_std_performance(
-        file_path=MANUAL_FILE_PATH,
-        obs_class=0,
-        metric=PerformanceMetric.F1SCORE.value,
-        stage=PerformanceStage.POST.value,
-        comp=True,
-    )
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 0)
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 1)
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 2)
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 3)

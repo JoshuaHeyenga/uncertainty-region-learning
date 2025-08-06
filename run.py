@@ -21,11 +21,11 @@ from visualization import plot_results_with_decision_boundary
 # === Configuration and Constants ===
 UNCERTAINTY_THRESHOLD: float = CONFIG["uncertainty_threshold"]
 RANDOM_STATE: int = CONFIG["random_state"]
-GAP_RATIO: float = CONFIG["gap_ratio"]
+GAP_RATIO: float = 1.0  # CONFIG["gap_ratio"]
 GAP_CLASS_LABEL: int = CONFIG["gap_class_label"]
 METHOD: AugmentationMethod = AugmentationMethod.SMOTE
 CSV_PATH: str = generate_filename(METHOD, UNCERTAINTY_THRESHOLD, base_dir="results")
-NUMBER_OF_CLASSES: int = 2
+NUMBER_OF_CLASSES: int = 4
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -52,15 +52,6 @@ def main() -> None:
     )
 
     X_train, X_test, y_train, y_test = prepare_data()
-    print("--- SPLIT INFO ---")
-    print("X_train shape:", X_train.shape)
-    print("X_test shape:", X_test.shape)
-    print("y_train counts:", np.bincount(y_train))
-    print("y_test counts:", np.bincount(y_test))
-    print("Checksum (X_train[:10]):", hash(X_train[:10].tobytes()))
-    print("Checksum (y_train[:10]):", hash(y_train[:10].tobytes()))
-    print("------------------")
-
     classifier = clean_train_classifier(X_train, y_train, CONFIG["random_state"])
 
     pre_classifier = classifier
@@ -183,49 +174,65 @@ def assign_and_log_gap_class(classifier, X_train, y_train) -> np.ndarray:
 
 
 def augment_data(X_train, y_train_with_gap) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Applies the selected augmentation method to the gap class to balance it.
-
-    Args:
-        X_train: Training features.
-        y_train_with_gap: Training labels including gap class.
-
-    Returns:
-        Tuple of (X_aug, y_aug): Augmented feature and label arrays.
-    """
-
     augment_fn = augmentation_dispatch.get(METHOD)
     if not augment_fn:
-        raise ValueError(f"Unsupported augmentation method: {METHOD}")
+        raise ValueError(f"Unsupported augmentation method: {METHOD.value}")
 
-    if NUMBER_OF_CLASSES <= 2:
-        return augment_fn(
+    X_aug = X_train.copy()
+    y_aug = y_train_with_gap.copy()
+    was_augmented = False
+    total_new_samples = 0
+
+    gap_labels = sorted(
+        [label for label in np.unique(y_train_with_gap) if label >= GAP_CLASS_LABEL]
+    )
+
+    print(f"[augment_data] Augmentation method: {METHOD}")
+    print(f"[augment_data] Gap labels to augment: {gap_labels}")
+
+    for gap_label in gap_labels:
+        print(f"[augment_data] Attempting to augment class: {gap_label}")
+        original_gap_size = np.sum(y_train_with_gap == gap_label)
+        print(
+            f"[augment_data] Number of original gap samples for {gap_label}: {original_gap_size}"
+        )
+
+        # Augmentiere nur diese Partial Gap Klasse
+        X_temp, y_temp, augmented = augment_fn(
             X_train,
             y_train_with_gap,
-            target_class=GAP_CLASS_LABEL,
+            target_class=gap_label,
             gap_ratio=GAP_RATIO,
         )
-    else:
-        first_gap_class_label = CONFIG["first_gap_class_label"]
 
-        X_aug_total = [X_train]
-        y_aug_total = [y_train_with_gap]
+        if augmented:
+            # Nur die neuen Samples herausziehen
+            new_samples = X_temp[len(X_train) :]
+            num_new_samples = len(new_samples)
+            new_labels = np.full(len(new_samples), GAP_CLASS_LABEL)
 
-        for i in range(NUMBER_OF_CLASSES):
-            gap_label = first_gap_class_label + i
-            if gap_label not in y_train_with_gap:
-                continue  # Skip if this gap label wasn't actually used
-
-            X_gap, y_gap = augment_fn(
-                X_train,
-                y_train_with_gap,
-                target_class=gap_label,
-                gap_ratio=GAP_RATIO,
+            X_aug = np.vstack((X_aug, new_samples))
+            y_aug = np.hstack((y_aug, new_labels))
+            was_augmented = True
+            total_new_samples += num_new_samples
+            print(
+                f"[augment_data] Augmented {num_new_samples} new samples for class {gap_label}"
             )
-            X_aug_total.append(X_gap)
-            y_aug_total.append(y_gap)
+        else:
+            print(f"[augment_data] No augmentation performed for class {gap_label}")
 
-        return np.vstack(X_aug_total), np.hstack(y_aug_total)
+        if was_augmented:
+            print(f"[augment_data] Total new samples added: {total_new_samples}")
+            print(
+                f"[augment_data] Final shape: X_aug={X_aug.shape}, y_aug={y_aug.shape}"
+            )
+        else:
+            print("[augment_data] No augmentation performed for any gap class.")
+
+    # Original-Gap-Samples wiederherstellen
+    # y_aug[: len(original_y_train)] = original_y_train
+
+    return X_aug, y_aug, was_augmented
 
 
 def evaluate_and_visualize_augmented(
