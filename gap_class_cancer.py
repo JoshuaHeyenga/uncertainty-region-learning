@@ -195,7 +195,7 @@ def count_uncertainty_samples_over_thresholds(classifier, X, Y, gap_label=99):
 
 
 if __name__ == "__main__":
-    """plot_performance_across_thresholds(
+    plot_performance_across_thresholds(
         MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
     )
     plot_performance_across_thresholds(
@@ -209,5 +209,5 @@ if __name__ == "__main__":
     )
     plot_performance_across_thresholds(
         MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
-    )"""
+    )
     plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)

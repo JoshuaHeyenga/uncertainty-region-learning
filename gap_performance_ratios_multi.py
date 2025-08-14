@@ -37,7 +37,7 @@ FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
 
 PRE_CLASSIFIER = None
 
-MANUAL_FILE_PATH: str = "results/final_results/ms_ratio_results__08.03_11.04.csv"
+MANUAL_FILE_PATH: str = "results/final_results/ms_ratio_results__08.06_12.19.csv"
 
 augmentation_dispatch = {
     AugmentationMethod.SMOTE: augment_smote_gap_class,
@@ -96,7 +96,20 @@ def get_seed_performance(seed: int) -> None:
                 class_count=NUMBER_OF_CLASSES,
             )
 
-            X_aug, y_aug, was_augmented = augment_data(X_train, y_train_gap, gap_ratio)
+            gap_labels = [
+                label
+                for label in np.unique(y_train_gap)
+                if label >= FIRST_GAP_CLASS_LABEL
+            ]
+            num_gap_assigned = np.sum(np.isin(y_train_gap, gap_labels))
+
+            if num_gap_assigned == 0:
+                print("Empty gap class, skipping augmentation.")
+                continue
+
+            X_aug, y_aug, was_augmented = augment_data(
+                X_train, y_train_gap, original_y_train, gap_ratio
+            )
 
             if not was_augmented:
                 print("Skipping retraining and logging — no augmentation needed.")
@@ -105,7 +118,6 @@ def get_seed_performance(seed: int) -> None:
             y_aug = np.where(
                 y_aug >= CONFIG["first_gap_class_label"], FIRST_GAP_CLASS_LABEL, y_aug
             )
-            y_aug[: len(y_train)] = original_y_train
 
             classifier_aug = clean_train_classifier(X_aug, y_aug, seed)
 
@@ -139,7 +151,7 @@ def prepare_data() -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 
 def augment_data(
-    X_train, y_train_with_gap, gap_ratio
+    X_train, y_train_with_gap, original_y_train, gap_ratio
 ) -> Tuple[np.ndarray, np.ndarray, bool]:
     augment_fn = augmentation_dispatch.get(METHOD)
     if not augment_fn:
@@ -154,27 +166,46 @@ def augment_data(
         )
         return X_aug, y_aug, was_augmented
     else:
-        X_aug_total = [X_train]
-        y_aug_total = [y_train_with_gap]
-        augmented = False
+        X_aug = X_train.copy()
+    y_aug = y_train_with_gap.copy()
+    was_augmented = False
 
-        for i in range(NUMBER_OF_CLASSES):
-            gap_label = FIRST_GAP_CLASS_LABEL + i
-            if gap_label not in y_train_with_gap:
-                continue
+    gap_labels = sorted(
+        [
+            label
+            for label in np.unique(y_train_with_gap)
+            if label >= FIRST_GAP_CLASS_LABEL
+        ]
+    )
 
-            X_gap, y_gap, was_aug = augment_fn(
-                X_train,
-                y_train_with_gap,
-                target_class=gap_label,
-                gap_ratio=gap_ratio,
-            )
-            if was_aug:
-                augmented = True
-                X_aug_total.append(X_gap)
-                y_aug_total.append(y_gap)
+    for gap_label in gap_labels:
+        print(f"[augment_data] Attempting to augment class: {gap_label}")
+        original_count = np.sum(y_train_with_gap == gap_label)
+        print(
+            f"[augment_data] Number of original gap samples for {gap_label}: {original_count}"
+        )
 
-        return np.vstack(X_aug_total), np.hstack(y_aug_total), augmented
+        # Augmentiere nur diese Partial Gap Klasse
+        X_temp, y_temp, augmented = augment_fn(
+            X_train,
+            y_train_with_gap,
+            target_class=gap_label,
+            gap_ratio=gap_ratio,
+        )
+
+        if augmented:
+            # Nur die neuen Samples herausziehen
+            new_samples = X_temp[len(X_train) :]
+            new_labels = np.full(len(new_samples), FIRST_GAP_CLASS_LABEL)
+
+            X_aug = np.vstack((X_aug, new_samples))
+            y_aug = np.hstack((y_aug, new_labels))
+            was_augmented = True
+
+    # Original-Gap-Samples wiederherstellen
+    y_aug[: len(original_y_train)] = original_y_train
+
+    return X_aug, y_aug, was_augmented
 
 
 if __name__ == "__main__":

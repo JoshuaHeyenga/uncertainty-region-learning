@@ -2,7 +2,9 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
 
 from config import CONFIG
 from dataset import generate_dataset, split_dataset
@@ -21,7 +23,7 @@ from visualization import plot_results_with_decision_boundary
 # === Configuration and Constants ===
 UNCERTAINTY_THRESHOLD: float = CONFIG["uncertainty_threshold"]
 RANDOM_STATE: int = CONFIG["random_state"]
-GAP_RATIO: float = 1.0  # CONFIG["gap_ratio"]
+GAP_RATIO: float = 0.8  # CONFIG["gap_ratio"]
 GAP_CLASS_LABEL: int = CONFIG["gap_class_label"]
 METHOD: AugmentationMethod = AugmentationMethod.SMOTE
 CSV_PATH: str = generate_filename(METHOD, UNCERTAINTY_THRESHOLD, base_dir="results")
@@ -52,6 +54,7 @@ def main() -> None:
     )
 
     X_train, X_test, y_train, y_test = prepare_data()
+    original_y_train = y_train.copy()
     classifier = clean_train_classifier(X_train, y_train, CONFIG["random_state"])
 
     pre_classifier = classifier
@@ -62,6 +65,13 @@ def main() -> None:
     y_train_with_gap = assign_and_log_gap_class(classifier, X_train, y_train)
     X_aug, y_aug, _ = augment_data(X_train, y_train_with_gap)
     # y_aug = np.where(y_aug >= CONFIG["first_gap_class_label"], GAP_CLASS_LABEL, y_aug)
+
+    y_aug = np.where(
+        y_aug >= CONFIG["first_gap_class_label"], CONFIG["first_gap_class_label"], y_aug
+    )
+
+    # 2) restore original labels for the original rows (strip gap from real samples)
+    y_aug[: len(original_y_train)] = original_y_train
 
     classifier_aug = clean_train_classifier(X_aug, y_aug, CONFIG["random_state"])
     evaluate_and_visualize_augmented(
@@ -209,7 +219,7 @@ def augment_data(X_train, y_train_with_gap) -> Tuple[np.ndarray, np.ndarray]:
             # Nur die neuen Samples herausziehen
             new_samples = X_temp[len(X_train) :]
             num_new_samples = len(new_samples)
-            new_labels = np.full(len(new_samples), GAP_CLASS_LABEL)
+            new_labels = np.full(len(new_samples), gap_label)
 
             X_aug = np.vstack((X_aug, new_samples))
             y_aug = np.hstack((y_aug, new_labels))
@@ -281,5 +291,41 @@ def evaluate_on_test_data(classifier, X_test, y_test):
     print(f"[POST GAP (ON TEST DATA)] Accuracy: {acc:.4f}")
 
 
+def load_wineqt_dataset():
+    df = pd.read_csv("data/WineQT.csv")
+    df = df.dropna()
+    Y = df["quality"].values
+    X = df.drop(columns=["quality", "Id"]).values
+    X = StandardScaler().fit_transform(X)
+    return X, Y
+
+
+def count_class_instances(Y):
+    """
+    Counts the number of samples per class and computes their percentage share.
+
+    Args:
+        Y (array-like): Array of class labels.
+
+    Returns:
+        pd.DataFrame: DataFrame with columns 'class', 'count', 'percentage'.
+    """
+    total_samples = len(Y)
+    counts = pd.Series(Y).value_counts().sort_index()
+    percentages = (counts / total_samples) * 100
+
+    result_df = pd.DataFrame(
+        {
+            "class": counts.index,
+            "count": counts.values,
+            "percentage": percentages.values,
+        }
+    )
+
+    return result_df
+
+
 if __name__ == "__main__":
-    main()
+    X, Y = load_wineqt_dataset()
+    class_stats = count_class_instances(Y)
+    print(class_stats)

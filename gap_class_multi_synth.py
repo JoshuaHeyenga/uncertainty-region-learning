@@ -40,7 +40,7 @@ SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"ms_results_all-methods__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
-MANUAL_FILE_PATH: str = "results/final_results/ms_results_all-methods__08.03_17.49.csv"
+MANUAL_FILE_PATH: str = "results/final_results/ms_results_all-methods__08.06_19.37.csv"
 
 PRE_CLASSIFIER = None
 
@@ -198,8 +198,7 @@ def augment_data(
 
 
 if __name__ == "__main__":
-    main()
-    """plot_performance_across_thresholds(
+    plot_performance_across_thresholds(
         MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
     )
     plot_performance_across_thresholds(
@@ -214,4 +213,4 @@ if __name__ == "__main__":
     plot_performance_across_thresholds(
         MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
     )
-    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)"""
+    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)

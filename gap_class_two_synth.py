@@ -223,20 +223,19 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    main()
-    """plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.01
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.01
     )
     plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.05
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
     )
     plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.1
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
     )
     plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.25
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
     )
     plot_performance_across_thresholds(
-        MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value, 0.5
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
     )
-    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.OVERSAMPLING.value)"""
+    plot_gcg_across_ratios(MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value)

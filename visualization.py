@@ -21,67 +21,65 @@ COLORS = {
 def plot_results_with_decision_boundary(
     classifier, X, Y, ax=None, title="", mode="auto"
 ):
-    """
-    Visualizes the decision boundary of a binary classifier (class 0 vs class 1)
-    along with the data points, while excluding class 2 from decision
-    boundary computation.
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.colors import ListedColormap
 
-    This function manually computes the decision surface using the classifier's
-    predicted probabilities and only uses the first two classes (0 and 1) for
-    visualization. Points from all classes are plotted, including the gap class
-    (shown in orange), but the decision boundary is only between classes 0 and 1.
+    GAP = CONFIG["first_gap_class_label"]
 
-    Args:
-        classifier: A trained classifier with a `predict_proba` method (e.g. MLPClassifier).
-        X (ndarray): Feature matrix of shape (n_samples, 2). Assumes two-dimensional input for plotting.
-        Y (ndarray): Label vector of shape (n_samples,) with class labels 0, 1, and optionally 2.
-        ax (matplotlib.axes.Axes, optional): Existing matplotlib axis to plot on. If None, a new figure is created.
-        title (str, optional): Title to set for the plot.
+    # 1) Classes in the exact model order
+    classes = classifier.classes_.astype(int)  # e.g. [0,1,2,3,104]
+    is_gap = classes == GAP
+    base_classes = classes[~is_gap]  # exclude gap from surface
 
-    Notes:
-        - Class 0 points are shown in red.
-        - Class 1 points are shown in blue.
-        - Class 2 (gap) points are shown in orange.
-        - The decision boundary only separates class 0 and 1 regions.
-    """
-
-    unique_classes = np.unique(Y)
-    base_classes = [c for c in unique_classes if c != GAP_LABEL]
-
-    # Color palette for base classes
+    # 2) Colors/labels (stable order = base_classes, then gap for points)
     base_cmap = plt.get_cmap("tab10")
-    class_colors = {cls: base_cmap(i) for i, cls in enumerate(base_classes)}
-    class_labels = {cls: f"Class {cls}" for cls in base_classes}
+    class_colors = {int(c): base_cmap(i) for i, c in enumerate(base_classes)}
+    gap_color = "#FFB000"
+    if GAP in np.unique(Y):
+        class_colors[int(GAP)] = gap_color
 
-    # Add gap class color
-    if GAP_LABEL in unique_classes:
-        class_colors[GAP_LABEL] = "#FFA500"
-        class_labels[GAP_LABEL] = "Gap Class"
+    class_labels = {int(c): f"Class {int(c)}" for c in base_classes}
+    class_labels[int(GAP)] = "Gap Class"
 
-    # Create grid for decision surface
+    # 3) Grid + probabilities (exclude gap column for surface)
     h = 0.1
     x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
     y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
     grid = np.c_[xx.ravel(), yy.ravel()]
-    Z = np.argmax(classifier.predict_proba(grid), axis=1)
-    Z = Z.reshape(xx.shape)
+
+    P = classifier.predict_proba(grid)  # shape (N, K) in classes_ order
+    P_base = P[:, ~is_gap]  # drop gap column
+    Z_pos = np.argmax(P_base, axis=1).reshape(xx.shape)  # positions 0..len(base)-1
 
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
-    # Plot decision surface
-    cmap = ListedColormap([class_colors[c] for c in sorted(class_colors)])
-    ax.contourf(xx, yy, Z, cmap=cmap, alpha=0.3)
+    # 4) Surface with colormap that matches base_classes order
+    cmap = ListedColormap([class_colors[int(c)] for c in base_classes])
+    ax.contourf(xx, yy, Z_pos, cmap=cmap, alpha=0.3)
 
-    # Plot data points
-    for cls in sorted(class_colors.keys()):
+    # 5) Scatter original classes
+    for cls in base_classes:
+        cls = int(cls)
         ax.scatter(
             X[Y == cls, 0],
             X[Y == cls, 1],
             c=[class_colors[cls]],
             edgecolor="k",
             label=class_labels[cls],
+            s=20,
+        )
+
+    # Gap points (points only, no surface)
+    if GAP in np.unique(Y):
+        ax.scatter(
+            X[Y == GAP, 0],
+            X[Y == GAP, 1],
+            c=[gap_color],
+            edgecolor="k",
+            label=class_labels[GAP],
             s=20,
         )
 
@@ -100,45 +98,64 @@ def plot_performance_across_ratios(file_path: str, obs_class: int):
     # Metrics to include
     metrics = ["precision", "recall", "f1", "accuracy"]
 
-    # Group: average across seeds AND thresholds
-    grouped = (
+    # Group: average + std across seeds and thresholds
+    grouped_mean = (
         df.groupby(["stage", "gap_ratio"])[metrics]
         .mean()
         .reset_index()
         .sort_values("gap_ratio")
     )
 
+    grouped_std = (
+        df.groupby(["stage", "gap_ratio"])[metrics]
+        .std()
+        .reset_index()
+        .sort_values("gap_ratio")
+    )
+
     # Separate pre and post stages
-    pre_df = grouped[grouped["stage"] == "pre"]
-    post_df = grouped[grouped["stage"] == "post"]
+    pre_mean_df = grouped_mean[grouped_mean["stage"] == "pre"]
+    post_mean_df = grouped_mean[grouped_mean["stage"] == "post"]
+    post_std_df = grouped_std[grouped_std["stage"] == "post"]
 
     # === Plotting ===
     fig, ax = plt.subplots(figsize=(7, 4))
 
     for metric in metrics:
-        # Post = solid line
+        color = COLORS[metric]
+
+        # === Post values with std fill ===
         ax.plot(
-            post_df["gap_ratio"],
-            post_df[metric],
+            post_mean_df["gap_ratio"],
+            post_mean_df[metric],
             label=f"Post {metric.capitalize()}",
             marker="o",
-            color=COLORS[metric],
+            color=color,
         )
 
-        # Pre = horizontal dashed line (averaged over thresholds and ratios)
+        ax.fill_between(
+            post_mean_df["gap_ratio"],
+            post_mean_df[metric] - post_std_df[metric],
+            post_mean_df[metric] + post_std_df[metric],
+            alpha=0.15,
+            color=color,
+        )
+
+        # === Pre baseline (dashed horizontal line) ===
         ax.axhline(
-            y=pre_df[metric].mean(),  # mean over all gap ratios
+            y=pre_mean_df[metric].mean(),  # mean over all gap ratios
             linestyle="--",
-            color=COLORS[metric],
+            color=color,
         )
 
-    # Legend setup
+    # === Legend ===
     pre_legend_proxy = Line2D(
         [0], [0], linestyle="--", color="gray", label="Pre values"
     )
     handles, labels = ax.get_legend_handles_labels()
     handles.insert(0, pre_legend_proxy)
     labels.insert(0, "Pre values")
+
     if obs_class == 0:
         ax.legend(
             handles,
@@ -149,10 +166,13 @@ def plot_performance_across_ratios(file_path: str, obs_class: int):
             title_fontsize=14,
         )
 
+    # === Axes & Labels ===
     ax.set_xlabel("Gap Ratio", fontsize=16)
     ax.set_ylabel("Score", fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.grid(True)
     ax.tick_params(axis="both", labelsize=13)
+
     plt.tight_layout()
     plt.show()
 
@@ -232,61 +252,72 @@ def plot_performance_across_thresholds(
     ]
     print(f"{len(method_df)} rows found for method '{augment_method}'")
 
-    # Metrics to include
     metrics = ["precision", "recall", "f1", "accuracy"]
 
     # Separate pre and post stages
     pre_df = method_df[method_df["stage"] == "pre"]
     post_df = method_df[method_df["stage"] == "post"]
 
-    # Group and average over thresholds
+    # Group by threshold: compute mean and std
     pre_grouped = (
         pre_df.groupby("threshold")[metrics]
         .mean()
         .reset_index()
         .sort_values("threshold")
     )
-    post_grouped = (
+    post_grouped_mean = (
         post_df.groupby("threshold")[metrics]
         .mean()
         .reset_index()
         .sort_values("threshold")
     )
+    post_grouped_std = (
+        post_df.groupby("threshold")[metrics]
+        .std()
+        .reset_index()
+        .sort_values("threshold")
+    )
 
-    # Plotting
+    # === Plotting ===
     fig, ax = plt.subplots(figsize=(7, 4))
     for metric in metrics:
+        color = COLORS.get(metric, None)
+
         # Pre-gap (dashed line)
         ax.plot(
             pre_grouped["threshold"],
             pre_grouped[metric],
             linestyle="--",
-            color=COLORS.get(metric, None),
+            color=color,
         )
+
         # Post-gap (solid line)
         ax.plot(
-            post_grouped["threshold"],
-            post_grouped[metric],
+            post_grouped_mean["threshold"],
+            post_grouped_mean[metric],
             marker="o",
             linestyle="-",
             label=f"Post {metric.capitalize()}",
-            color=COLORS.get(metric, None),
+            color=color,
         )
 
-    # ax.set_title(f"Performance Across Thresholds ({augment_method})", fontsize=14)
-    ax.set_xlabel("Threshold", fontsize=16)
-    ax.set_ylabel("Score", fontsize=16)
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.3f"))
-    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
-    ax.grid(True)
+        # Std deviation fill
+        ax.fill_between(
+            post_grouped_mean["threshold"],
+            post_grouped_mean[metric] - post_grouped_std[metric],
+            post_grouped_mean[metric] + post_grouped_std[metric],
+            alpha=0.15,
+            color=color,
+        )
 
+    # === Legend ===
     pre_legend_proxy = Line2D(
         [0], [0], linestyle="--", color="gray", label="Pre values"
     )
     handles, labels = ax.get_legend_handles_labels()
     handles.insert(0, pre_legend_proxy)
     labels.insert(0, "Pre values")
-    if gap_ratio == 0.01:
+    if gap_ratio == 0.05:
         ax.legend(
             handles,
             labels,
@@ -296,6 +327,12 @@ def plot_performance_across_thresholds(
             title_fontsize=14,
         )
 
+    # === Axes & Labels ===
+    ax.set_xlabel("Threshold", fontsize=16)
+    ax.set_ylabel("Score", fontsize=16)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.3f"))
+    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.grid(True)
     ax.tick_params(axis="both", labelsize=13)
 
     plt.tight_layout()
@@ -349,24 +386,41 @@ def plot_gcg_across_ratios(file_path: str, augment_method: str):
     ]
 
     # Define the specific gap ratios to plot
-    target_ratios = [0.01, 0.05, 0.1, 0.25, 0.5]
+    target_ratios = [0.05, 0.1, 0.25, 0.5]
 
     fig, ax = plt.subplots(figsize=(7, 4))
 
     for ratio in target_ratios:
         ratio_df = gcg_df[gcg_df["gap_ratio"] == ratio]
-        grouped = (
+
+        grouped_mean = (
             ratio_df.groupby("threshold")["gcg"]
             .mean()
             .reset_index()
             .sort_values("threshold")
         )
 
+        grouped_std = (
+            ratio_df.groupby("threshold")["gcg"]
+            .std()
+            .reset_index()
+            .sort_values("threshold")
+        )
+
+        # Plot mean line
         ax.plot(
-            grouped["threshold"],
-            grouped["gcg"],
+            grouped_mean["threshold"],
+            grouped_mean["gcg"],
             marker="o",
             label=f"Gap Ratio {ratio:.2f}",
+        )
+
+        # Plot std band
+        ax.fill_between(
+            grouped_mean["threshold"],
+            grouped_mean["gcg"] - grouped_std["gcg"],
+            grouped_mean["gcg"] + grouped_std["gcg"],
+            alpha=0.15,
         )
 
     ax.set_xlabel("Threshold", fontsize=16)

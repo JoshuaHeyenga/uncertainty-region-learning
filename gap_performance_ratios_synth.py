@@ -182,31 +182,5 @@ def evaluate_on_original_training_data(
 
 
 if __name__ == "__main__":
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        0,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        1,
-        PerformanceMetric.ACCURACY.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        0,
-        PerformanceMetric.F1SCORE.value,
-        PerformanceStage.POST.value,
-        True,
-    )
-    plot_std_performance(
-        MANUAL_FILE_PATH,
-        1,
-        PerformanceMetric.F1SCORE.value,
-        PerformanceStage.POST.value,
-        True,
-    )
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 0)
+    plot_performance_across_ratios(MANUAL_FILE_PATH, 1)

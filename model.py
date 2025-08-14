@@ -76,21 +76,24 @@ def evaluate_and_log_model(
     for class_label, p, r, f, s in zip(
         np.unique(Y_test), precision, recall, f1, support
     ):
-        log_metrics_to_csv(
-            file_path=file_path,
-            method=method,
-            stage=stage,
-            seed=seed,
-            class_label=class_label,
-            threshold=threshold,
-            gap_ratio=gap_ratio,
-            precision=p,
-            recall=r,
-            f1=f,
-            support=s,
-            accuracy=acc,
-            gcg=gap_clarity_gain,
-        )
+        if gap_clarity_gain == 0.0:
+            continue
+        else:
+            log_metrics_to_csv(
+                file_path=file_path,
+                method=method,
+                stage=stage,
+                seed=seed,
+                class_label=class_label,
+                threshold=threshold,
+                gap_ratio=gap_ratio,
+                precision=p,
+                recall=r,
+                f1=f,
+                support=s,
+                accuracy=acc,
+                gcg=gap_clarity_gain,
+            )
 
 
 def sanitize_predictions(y_pred, valid_labels):
@@ -113,7 +116,7 @@ def compute_gap_clarity_gain(  # needs to be updated
     pre_proba = pre_classifier.predict_proba(X_test)
     post_proba = post_classifier.predict_proba(X_test)
 
-    base_classes = [0, 1]
+    base_classes = list(range(class_count))
 
     conf_before = np.max(pre_proba[:, base_classes], axis=1)
     conf_after = np.max(post_proba[:, base_classes], axis=1)
@@ -148,30 +151,42 @@ def assign_gap_class(
         Y_extended[uncertain_mask] = CONFIG["gap_class_label"]
         return Y_extended, uncertain_mask
     else:
-        print("Assigning gap class for multi-class classification.")
+        # print("Assigning gap class for multi-class classification.")
 
         gap_class_label = CONFIG["first_gap_class_label"]
         partial_gap_masks = {}
         proba_all = classifier.predict_proba(X)
+        loop_helper = 0
 
-        for cls in range(class_count):
-            proba_cls = proba_all[:, cls]
-            proba_not_cls = np.sum(np.delete(proba_all, cls, axis=1), axis=1)
+        unique_classes = np.unique(Y)
+        # print("Unique classes in Y:", unique_classes)
+        for cls in unique_classes:
+            # print(f"\n--- Class {cls} ---")
+            # print(f"Loop helper value: {loop_helper}")
+            proba_cls = proba_all[:, loop_helper]
+            proba_not_cls = np.sum(np.delete(proba_all, loop_helper, axis=1), axis=1)
 
             # Consider samples where the true label is cls
             belongs_to_class = Y == cls
+            # print(f"Total samples belonging to class {cls}: {np.sum(belongs_to_class)}")
 
             # Low confidence that it's either cls or not-cls
             confidence = np.maximum(proba_cls, proba_not_cls)
+            # below_threshold = confidence < (1 - threshold)  # optional
             uncertain_mask = (confidence < (1 - threshold)) & belongs_to_class
+            # print(f"Samples below threshold for class {cls}: {np.sum(below_threshold)}")
+            # print(
+            #    f"Uncertain samples (final selection) for class {cls}: {np.sum(uncertain_mask)}"
+            # )
 
             partial_gap_masks[cls] = uncertain_mask
             Y_extended[uncertain_mask] = gap_class_label
-            print(
-                f"Assigned gap label {gap_class_label} for class {cls} — {np.sum(uncertain_mask)} samples."
-            )
-            print("Classes in Y post-augmentation (in loop):", np.unique(Y_extended))
+            # print(
+            #    f"Assigned gap label {gap_class_label} for class {cls} — {np.sum(uncertain_mask)} samples."
+            # )
+            # print("Classes in Y post assignmend (in loop):", np.unique(Y_extended))
             gap_class_label += 1
+            loop_helper += 1
 
         return Y_extended, partial_gap_masks
 

@@ -32,7 +32,7 @@ FIRST_GAP_CLASS_LABEL: int = CONFIG["first_gap_class_label"]
 NUMBER_OF_CLASSES: int
 
 # Testing Range
-THRESHOLDS: float = CONFIG["wine_thresholds"]
+THRESHOLDS: float = CONFIG["threshold_performance_thresholds"]
 GAP_RATIOS: float = CONFIG["threshold_performance_gap_ratios"]
 
 # Logging
@@ -40,7 +40,9 @@ SYNTH_DIR: str = "results/final_results/"
 TIMESTAMP: str = datetime.now().strftime("%m.%d_%H.%M")
 FILE_NAME: str = f"wine_results_all-methods__{TIMESTAMP}.csv"
 FILE_PATH: str = os.path.join(SYNTH_DIR, FILE_NAME)
-MANUAL_FILE_PATH: str = "results/final_results/ms_results_all-methods__08.03_17.49.csv"
+MANUAL_FILE_PATH: str = (
+    "results/final_results/wine_results_all-methods__08.06_19.04.csv"
+)
 
 PRE_CLASSIFIER = None
 
@@ -109,6 +111,7 @@ def get_seed_performance_for_method(seed: int, augment_method: AugmentationMetho
                 if label >= FIRST_GAP_CLASS_LABEL
             ]
             num_gap_assigned = np.sum(np.isin(y_train_gap, gap_labels))
+            print("Number of samples assigned to gap class:", num_gap_assigned)
 
             if num_gap_assigned == 0:
                 print("Empty gap class, skipping augmentation.")
@@ -229,4 +232,15 @@ def count_uncertainty_samples_over_thresholds(classifier, X, Y, gap_label=99):
 
 
 if __name__ == "__main__":
-    main()
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.05
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.1
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.25
+    )
+    plot_performance_across_thresholds(
+        MANUAL_FILE_PATH, AugmentationMethod.ADASYN.value, 0.5
+    )
